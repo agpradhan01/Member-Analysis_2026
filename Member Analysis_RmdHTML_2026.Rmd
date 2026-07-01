@@ -1,0 +1,263 @@
+---
+title: "Member Analysis_RmdHTML_2026"
+author: "Aileen Pradhan"
+date: "`r Sys.Date()`"
+output: html_document
+---
+```{r plotly-map, message=FALSE, warning=FALSE}
+#install.packages("plotly")
+#install.packages("tidygeocoder")
+library(tidyverse)
+library(readxl)
+library(here)
+library(purrr)
+library(leaflet)
+library(plotly)
+library(urbnmapr)
+library(tidygeocoder)
+
+# ── Chunk 1: geocode (run this first) ─────────────────────────────────────────
+AAPCHOMembers <- c("H80CS02327", "H80CS29016", "H80CS26615", "H80CS00773",
+                   "H80CS26574", "H80CS02326", "H80CS00358", "H80CS04290",
+                   "H80CS00722", "H80CS28986", "H80CS02468", "H80CS06640",
+                   "H80CS24153", "H80CS00437", "H80CS31624", "H80CS00814",
+                   "H80CS00776", "H80CS33646", "H80CS35350", "H80CS08775",
+                   "H80CS00397", "H80CS26582", "H80CS00221", "H80CS26623",
+                   "H80CS00600", "H80CS06653", "H80CS00807", "H80CS00646")
+read_aapcho <- function(file, sheet, col_select = NULL) {
+  df <- read_excel(file, sheet = sheet)
+  
+  if (!is.null(col_select)) {
+    keep <- union(which(names(df) == "GrantNumber"), col_select)
+  } else {
+    keep <- union(which(names(df) == "GrantNumber"), setdiff(seq_along(df), 1))
+  }
+  
+  df[keep] |> filter(GrantNumber %in% AAPCHOMembers)
+}
+
+load_year <- function(file, year) {
+  
+  hci <- read_excel(file, sheet = "HealthCenterInfo") |>
+    select(GrantNumber, ReportingYear, HealthCenterName, HealthCenterCity,
+           HealthCenterState, HealthCenterZIPCode, FundingCHC, FundingMHC,
+           FundingHO, FundingPH, UrbanRuralFlag) |>
+    filter(GrantNumber %in% AAPCHOMembers)
+  
+  tables <- list(
+    read_aapcho(file, "Table3A"),
+    read_aapcho(file, "Table3B"),
+    read_aapcho(file, "Table4", col_select = 2:30),
+    read_aapcho(file, "Table5"),
+    read_aapcho(file, "Table6A"),
+    read_aapcho(file, "Table6B"),
+    read_aapcho(file, "Table7_1"),
+    read_aapcho(file, "Table7_2"),
+    read_aapcho(file, "Table8A"),
+    read_aapcho(file, "Table9E"),
+    read_aapcho(file, "HITInformation"),
+    read_aapcho(file, "OtherDataElements")
+  )
+  
+  merged <- c(list(hci), tables) |>
+    reduce(full_join, by = "GrantNumber") |>
+    filter(!is.na(GrantNumber), !grepl("^-+$", GrantNumber))
+  
+  keep_as_character <- c("GrantNumber", "HealthCenterName", "HealthCenterCity",
+                         "HealthCenterState", "HealthCenterZIPCode",
+                         "UrbanRuralFlag", "ReportingYear")
+  merged[keep_as_character] <- lapply(merged[keep_as_character], as.character)
+  
+  cols_to_convert <- setdiff(names(merged), keep_as_character)
+  merged[cols_to_convert] <- lapply(merged[cols_to_convert], as.numeric)
+  
+  merged
+}
+year_files <- list(
+  "2021" = here("H802021.xlsx"),
+  "2022" = here("H802022.xlsx"),
+  "2023" = here("H802023.xlsx"),
+  "2024" = here("H802024.xlsx"))
+all_years <- imap(year_files, ~load_year(.x, .y))
+AAPCHOMembers20212025 <- bind_rows(all_years)
+org_coords <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == 2024) %>%
+  select(GrantNumber, HealthCenterName, HealthCenterCity,
+         HealthCenterState, HealthCenterZIPCode) %>%
+  distinct() %>%
+  geocode(city = HealthCenterCity, state = HealthCenterState, method = "osm")
+
+# Manual coords for Pacific territory orgs
+manual_coords <- tibble(
+  GrantNumber      = c("H80CS06653",          "H80CS31624",             "H80CS35350"),
+  HealthCenterName = c("WA'AB CHC/YAP STATE", "KAGMAN COMMUNITY HEALTH", "KOSRAE COMMUNITY HEALTH"),
+  lat              = c(9.5149,                 15.2317,                   5.3198),
+  long             = c(138.1300,               145.7809,                  162.9815)
+)
+
+org_coords_fixed <- org_coords %>%
+  filter(!GrantNumber %in% manual_coords$GrantNumber) %>%
+  bind_rows(manual_coords)
+
+# ── Chunk 2: build org_data with popups (run this second) ─────────────────────
+org_data <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == 2024) %>%
+  select(GrantNumber, HealthCenterName, HealthCenterState,
+         T3b_L1a_Cd, T3b_L1b_Cd, T3b_L1c_Cd, T3b_L1d_Cd,
+         T3b_L1e_Cd, T3b_L1f_Cd, T3b_L1g_Cd,
+         T3b_L2a_Cd, T3b_L2b_Cd, T3b_L2c_Cd, T3b_L2d_Cd) %>%
+  rename(
+    Asian_Indian           = T3b_L1a_Cd,
+    Chinese                = T3b_L1b_Cd,
+    Filipino               = T3b_L1c_Cd,
+    Japanese               = T3b_L1d_Cd,
+    Korean                 = T3b_L1e_Cd,
+    Vietnamese             = T3b_L1f_Cd,
+    Other_Asian            = T3b_L1g_Cd,
+    Native_Hawaiian        = T3b_L2a_Cd,
+    Other_Pacific_Islander = T3b_L2b_Cd,
+    Guamanian_or_Chamorro  = T3b_L2c_Cd,
+    Samoan                 = T3b_L2d_Cd
+  ) %>%
+  left_join(org_coords_fixed %>% 
+              select(GrantNumber, lat, long),  # only bring in coords, nothing else
+            by = "GrantNumber") %>%
+  mutate(popup_label = paste0(
+    "<b>", HealthCenterName, "</b><br>",
+    "State: ", HealthCenterState, "<br><hr>",
+    "<b>Asian Subgroups:</b><br>",
+    "Asian Indian: ",           ifelse(is.na(Asian_Indian),           "suppressed", Asian_Indian), "<br>",
+    "Chinese: ",                ifelse(is.na(Chinese),                "suppressed", Chinese), "<br>",
+    "Filipino: ",               ifelse(is.na(Filipino),               "suppressed", Filipino), "<br>",
+    "Japanese: ",               ifelse(is.na(Japanese),               "suppressed", Japanese), "<br>",
+    "Korean: ",                 ifelse(is.na(Korean),                 "suppressed", Korean), "<br>",
+    "Vietnamese: ",             ifelse(is.na(Vietnamese),             "suppressed", Vietnamese), "<br>",
+    "Other Asian: ",            ifelse(is.na(Other_Asian),            "suppressed", Other_Asian), "<br>",
+    "<b>Pacific Islander Subgroups:</b><br>",
+    "Native Hawaiian: ",        ifelse(is.na(Native_Hawaiian),        "suppressed", Native_Hawaiian), "<br>",
+    "Other Pacific Islander: ", ifelse(is.na(Other_Pacific_Islander), "suppressed", Other_Pacific_Islander), "<br>",
+    "Guamanian/Chamorro: ",     ifelse(is.na(Guamanian_or_Chamorro),  "suppressed", Guamanian_or_Chamorro), "<br>",
+    "Samoan: ",                 ifelse(is.na(Samoan),                 "suppressed", Samoan),
+    "<hr><b>Clinical Quality (coming soon)</b><br>",
+    "<b>Workforce Data (coming soon)</b><br>"
+  ))
+
+# ── Chunk 3: map (run this last) ───────────────────────────────────────────────
+states_territories <- get_urbn_map(map = "territories_states", sf = FALSE)
+map_base <- states_territories %>%
+  left_join(AANHPIracebystate2024, by = c("state_abbv" = "HealthCenterState"))
+
+# ... rest of plotly map code
+# ── 1. Join state race data to urbnmapr territories ───────────────────────────
+states_territories <- get_urbn_map(map = "territories_states", sf = FALSE)
+AANHPIracebystate2024 <- AAPCHOMembers20212025 %>%
+filter(ReportingYear == 2024) %>%
+group_by(ReportingYear, HealthCenterState) %>%
+summarise(
+Asian_Indian = sum(T3b_L1a_Cd, na.rm = TRUE),
+Chinese      = sum(T3b_L1b_Cd, na.rm = TRUE),
+Filipino     = sum(T3b_L1c_Cd, na.rm = TRUE),
+Japanese     = sum(T3b_L1d_Cd, na.rm = TRUE),
+Korean       = sum(T3b_L1e_Cd, na.rm = TRUE),
+Vietnamese   = sum(T3b_L1f_Cd, na.rm = TRUE),
+Other_Asian  = sum(T3b_L1g_Cd, na.rm = TRUE),
+Native_Hawaiian = sum(T3b_L2a_Cd, na.rm = TRUE),
+Other_Pacific_Islander = sum(T3b_L2b_Cd, na.rm = TRUE),
+Guamanian_or_Chamorro = sum(T3b_L2c_Cd, na.rm = TRUE),
+Samoan = sum(T3b_L2d_Cd, na.rm = TRUE),
+.groups = "drop"
+)
+map_base <- states_territories %>%
+  left_join(AANHPIracebystate2024, by = c("state_abbv" = "HealthCenterState"))
+
+# ── 2. Build hover text for state polygons ────────────────────────────────────
+map_base <- map_base %>%
+  mutate(state_hover = paste0(
+    "<b>", state_name, "</b><br>",
+    "Asian Indian: ",           ifelse(is.na(Asian_Indian),           "No AAPCHO member", Asian_Indian), "<br>",
+    "Chinese: ",                ifelse(is.na(Chinese),                "No AAPCHO member", Chinese), "<br>",
+    "Filipino: ",               ifelse(is.na(Filipino),               "No AAPCHO member", Filipino), "<br>",
+    "Japanese: ",               ifelse(is.na(Japanese),               "No AAPCHO member", Japanese), "<br>",
+    "Korean: ",                 ifelse(is.na(Korean),                 "No AAPCHO member", Korean), "<br>",
+    "Vietnamese: ",             ifelse(is.na(Vietnamese),             "No AAPCHO member", Vietnamese), "<br>",
+    "Other Asian: ",            ifelse(is.na(Other_Asian),            "No AAPCHO member", Other_Asian), "<br>",
+    "Native Hawaiian: ",        ifelse(is.na(Native_Hawaiian),        "No AAPCHO member", Native_Hawaiian), "<br>",
+    "Other Pacific Islander: ", ifelse(is.na(Other_Pacific_Islander), "No AAPCHO member", Other_Pacific_Islander), "<br>",
+    "Guamanian/Chamorro: ",     ifelse(is.na(Guamanian_or_Chamorro),  "No AAPCHO member", Guamanian_or_Chamorro), "<br>",
+    "Samoan: ",                 ifelse(is.na(Samoan),                 "No AAPCHO member", Samoan)
+  ))
+
+# ── 3. Build the ggplot base ───────────────────────────────────────────────────
+
+p <- ggplot() +
+  geom_polygon(
+    data = states_territories %>%
+      left_join(AANHPIracebystate2024, by = c("state_abbv" = "HealthCenterState")) %>%
+      mutate(state_hover = paste0(
+        "<b>", state_name, "</b><br>",
+        "Asian Indian: ",           ifelse(is.na(Asian_Indian),           "No AAPCHO member", Asian_Indian), "<br>",
+        "Chinese: ",                ifelse(is.na(Chinese),                "No AAPCHO member", Chinese), "<br>",
+        "Filipino: ",               ifelse(is.na(Filipino),               "No AAPCHO member", Filipino), "<br>",
+        "Japanese: ",               ifelse(is.na(Japanese),               "No AAPCHO member", Japanese), "<br>",
+        "Korean: ",                 ifelse(is.na(Korean),                 "No AAPCHO member", Korean), "<br>",
+        "Vietnamese: ",             ifelse(is.na(Vietnamese),             "No AAPCHO member", Vietnamese), "<br>",
+        "Other Asian: ",            ifelse(is.na(Other_Asian),            "No AAPCHO member", Other_Asian), "<br>",
+        "Native Hawaiian: ",        ifelse(is.na(Native_Hawaiian),        "No AAPCHO member", Native_Hawaiian), "<br>",
+        "Other Pacific Islander: ", ifelse(is.na(Other_Pacific_Islander), "No AAPCHO member", Other_Pacific_Islander), "<br>",
+        "Guamanian/Chamorro: ",     ifelse(is.na(Guamanian_or_Chamorro),  "No AAPCHO member", Guamanian_or_Chamorro), "<br>",
+        "Samoan: ",                 ifelse(is.na(Samoan),                 "No AAPCHO member", Samoan)
+      )),
+    aes(x = long, y = lat, group = group, fill = Total_Asian, text = state_hover),
+    color = "white",
+    size  = 0.25
+  ) +
+  geom_point(
+    data  = org_data %>% filter(!is.na(long)),
+    aes(x = long, y = lat, text = popup_label),
+    color = "black",
+    fill  = "blue",
+    shape = 21,
+    size  = 3
+  ) +
+  scale_fill_viridis_c(
+    option   = "plasma",
+    na.value = "grey90",
+    name     = "Total Asian Patients"
+  ) +
+  coord_fixed(1.3) +
+  labs(
+    title   = "AANHPI Patients at AAPCHO Member Health Centers (2024)",
+    caption = "Source: HRSA UDS 2024. Grey = no AAPCHO member in state/territory."
+  ) +
+  theme_void() +
+  theme(legend.position = "right")
+
+ggplotly(p, tooltip = "text") %>%
+  layout(
+    hoverlabel = list(bgcolor = "white", font = list(size = 12)),
+    title = list(text = "AANHPI Patients at AAPCHO Member Health Centers (2024)")
+  )
+```
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
