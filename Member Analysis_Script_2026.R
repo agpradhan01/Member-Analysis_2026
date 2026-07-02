@@ -4,6 +4,7 @@
 gitcreds::gitcreds_set()
 # paste token when prompted -- selection, enter token if needed
 usethis::use_github()
+#currently using 'git push origin main' in Terminal to get around not having branch/head, which is stopping me from pushing from Git tab.
 # File Setup --------------------------------------------------------------
 
 
@@ -82,6 +83,11 @@ year_files <- list(
   "2024" = here("H802024.xlsx"))
 all_years <- imap(year_files, ~load_year(.x, .y))
 AAPCHOMembers20212025 <- bind_rows(all_years)
+
+
+# General  ----------------------------------------------------------------
+
+###States
 
 # AAPCHO Member Demographics (3A, 3B) -------------------------------------
 
@@ -204,8 +210,7 @@ AAPCHOMembers20212025 %>%
                           T3a_L38_Ca+
                           T3a_L38_Cb, na.rm = TRUE))
 
-###Visit Counts
-###States
+
 
 #AAPCHO Members - Patient Demographics
 ##Total Asian 2021-2025 
@@ -232,9 +237,6 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(total = sum(T3b_L5_Cd, na.rm = TRUE))
-##Total White 2021-2025 
-sum(AAPCHOMembers20212025$T3b_L6_Cd[AAPCHOMembers20212025$ReportingYear == "2021"], na.rm = TRUE)
-sum(AAPCHOMembers20212025$T3b_L6_Cd[AAPCHOMembers20212025$ReportingYear == "2022"], na.rm = TRUE)
 ##Total More than one 2021-2025 
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
@@ -318,7 +320,33 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(sum(T3b_L12_Ca, na.rm = TRUE))
-T3b_L12_Ca
+
+
+# Table 5 - FTEs, Visits --------------------------------------------------
+###Visit Counts
+
+# Table 6A ----------------------------------------------------------------
+
+
+# Table 6B ----------------------------------------------------------------
+
+
+# Table 7 -----------------------------------------------------------------
+
+
+
+# Table 8 -----------------------------------------------------------------
+
+
+# Table 9D ----------------------------------------------------------------
+
+
+# HIT ---------------------------------------------------------------
+
+
+# Addendum - WKFC ---------------------------------------------------------
+
+
 # DATA VIZ ----------------------------------------------------------------
 
 
@@ -365,5 +393,4 @@ T3b_L12_Ca
 #AAPCHO Members - Workforce
 
 #AAPCHO Members - HIT
-#test
-##test
+
