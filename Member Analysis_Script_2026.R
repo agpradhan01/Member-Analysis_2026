@@ -1,25 +1,17 @@
 
 
-# Establish Git Connection ------------------------------------------------
+# (AP only) Establish Git Connection ------------------------------------------------
 gitcreds::gitcreds_set()
 # paste token when prompted -- selection, enter token if needed
 usethis::use_github()
 #currently using 'git push origin main' in Terminal to get around not having branch/head, which is stopping me from pushing from Git tab.
 # File Setup --------------------------------------------------------------
 
-
 #install.packages(pacman)
 #pacman::p_load()
 #install.packages("devtools") #to get urbnmapr
-library(here)
-library(tidyverse)
-library(readxl)
-library(purrr)
-library(dplyr)
-library(tidygeocoder)
-library(plotly)
-library(urbnmapr)
-library(gitcreds)
+library(pacman)
+p_load(gitcreds, here, readxl, tidyverse, skimr, flextable, purrr, dplyr, janitor, tidygeocoder, plotly, urbnmapr)
 AAPCHOMembers <- c("H80CS02327", "H80CS29016", "H80CS26615", "H80CS00773",
                    "H80CS26574", "H80CS02326", "H80CS00358", "H80CS04290",
                    "H80CS00722", "H80CS28986", "H80CS02468", "H80CS06640",
@@ -84,11 +76,48 @@ year_files <- list(
 all_years <- imap(year_files, ~load_year(.x, .y))
 AAPCHOMembers20212025 <- bind_rows(all_years)
 
+# Cleaning/Checks ---------------------------------------------------------
+##Reporting years
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  skimr::skim(GrantNumber)
+AAPCHOMembers20212025 %>%
+  group_by(GrantNumber) %>%
+  skimr::skim(ReportingYear, 2021)
+
+##AA, NH, PI
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  skimr::skim(T3b_L1_Cd)
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear, GrantNumber) %>%
+  skimr::skim(T3b_L1_Cd)
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  skimr::skim(T3b_L2a_Cd)
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  skimr::skim(T3b_L2b_Cd)
+
 
 # General  ----------------------------------------------------------------
-
+##Statesterritories, urban/rural, patient count groupings, 
+AAPCHOMembers20212025 %>%
+  tabyl(ReportingYear, HealthCenterState) %>% 
+  adorn_totals(where = "col") %>% 
+  adorn_percentages(denominator = "row") %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns(position = "front") %>% 
+  adorn_title(
+    row_name = "Year",
+    col_name = "State",
+    placement = "combined") %>% # this is necessary to print as image
+  flextable::flextable() %>%    # convert to pretty image
+  flextable::autofit()          # format to one line per row 
 ###States
-
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(total = sum(T3a_L39_Ca + T3a_L39_Cb, na.rm = TRUE))
 # AAPCHO Member Demographics (3A, 3B) -------------------------------------
 
 
@@ -348,7 +377,41 @@ AAPCHOMembers20212025 %>%
 
 
 # DATA VIZ ----------------------------------------------------------------
+##Patient Counts
 
+# #total AANHPI AAPCHO Members
+# totalAANHPIAAPCHO <- sum(rowSums(AAPCHOMember[, c("T3b_L1_Cd", "T3b_L2_Cd")], na.rm = TRUE), na.rm = TRUE)
+# AAPCHOMember[cols_to_convert] <- lapply(AAPCHOMember[cols_to_convert], as.numeric)
+# AAPCHO_row_totals <- rowSums(AAPCHOMember[, c("T3b_L1_Cd", "T3b_L2_Cd")], na.rm = TRUE)
+# summary(AAPCHO_row_totals)
+# ggplot(data.frame(AAPCHO_row_totals), aes(x = AAPCHO_row_totals)) +
+#   # IQR shaded band
+#   annotate("rect", xmin = 3193, xmax = 15303, ymin = 0, ymax = Inf,
+#            fill = "lavender", alpha = 0.15) +
+#   geom_histogram(bins = 15, fill = "lavender", color = "white") +
+#   scale_x_continuous(labels = scales::comma) +
+#   # Vertical lines
+#   geom_vline(xintercept = 5856,  color = "orange", linetype = "dashed", linewidth = 0.8) +
+#   geom_vline(xintercept = 12885, color = "red",    linetype = "dashed", linewidth = 0.8) +
+#   geom_vline(xintercept = 3193,   color = "gray40", linetype = "dotted", linewidth = 0.7) +
+#   geom_vline(xintercept = 15303,  color = "gray40", linetype = "dotted", linewidth = 0.7) +
+#   # Labels
+#   annotate("text", x = 5856,  y = Inf, label = "Median\n5856",  
+#            vjust = 1.5, hjust = -0.1, color = "orange", size = 3.5) +
+#   annotate("text", x = 12885, y = Inf, label = "Mean\n12,885", 
+#            vjust = 1.5, hjust = -0.1, color = "red",    size = 3.5) +
+#   annotate("text", x = 3,193,   y = Inf, label = "Q1\n3193",      
+#            vjust = 3.5, hjust = -0.1, color = "gray40", size = 3) +
+#   annotate("text", x = 15303,  y = Inf, label = "Q3\n736",     
+#            vjust = 3.5, hjust = -0.1, color = "gray40", size = 3) +
+#   # IQR bracket label
+#   annotate("text", x = sqrt(3193 * 15303), y = Inf,
+#            label = "Middle 50% of orgs", vjust = 5, color = "lavender", 
+#            size = 3, fontface = "italic") +
+#   labs(title = "Distribution of AANHPI Patients per AAPCHO Member Health Center",
+#        x = "Total AANHPI Patients",
+#        y = "Number of AAPCHO Member Health Centers") +
+#   theme_minimal()
 
 # ##DATA VIZ## for map 
 # #downloading urbnmapr for better viz of territories#
