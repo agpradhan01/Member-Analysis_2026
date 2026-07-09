@@ -74,6 +74,7 @@ year_files <- list(
   "2024" = here("H802024.xlsx"))
 all_years <- imap(year_files, ~load_year(.x, .y))
 AAPCHOMembers20212025 <- bind_rows(all_years)
+#Results File -- need to recommit to Git 
 pacman::p_load(here, rio)
 ResultsFile <- import(here("Results.xlsx"))
 # Data Cleaning/Checks ---------------------------------------------------------
@@ -357,6 +358,10 @@ AAPCHOMembers20212025 %>%
 
 # Table 5 - FTEs, Visits --------------------------------------------------
 ##FTEs 
+#widen tibble display
+options(pillar.width = Inf,
+        +         pillar.sigfig = 4,
+        +         dplyr.width = Inf)
 ###Family Physicians T5_L1_Ca
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
@@ -381,8 +386,74 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(sum(T5_L7_Ca, na.rm = TRUE))
+#CHECK# Total Physician Count
+##Discrepancy by 4 FTEs - likely due to other physician type not listed. Lot of suppression in 2021. CHECK BACK.
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L8_Ca, na.rm = TRUE))
+##Physician Averages#
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(
+    FM        = mean(T5_L1_Ca, na.rm = TRUE),
+    GP     = mean(T5_L2_Ca, na.rm = TRUE),
+    IM    = mean(T5_L3_Ca, na.rm = TRUE),
+    OBGYN = mean(T5_L4_Ca, na.rm = TRUE),
+    Peds        = mean(T5_L5_Ca, na.rm = TRUE),
+    OtherSpec        = mean(T5_L7_Ca, na.rm = TRUE)
+  ) %>%
+  mutate(across(where(is.numeric), ~ round(.x, 2)))
 
+#Total NPs, PAs, CNMs
 
+#Total Medical Care Services
+#Total Med Patients
+#Total Dental Services
+#Total Dental Patients
+#Total Mental Health Services
+#Total Mental Health Patients
+#SUD
+#SUD Patients
+#Total Vision Services
+#Total Vision Patients
+#Pharmacy Personnel 
+#Total Enabling Services 
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L29_Ca, na.rm = TRUE))
+##Case Managers
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L24_Ca, na.rm = TRUE))
+##Health Education Specialists
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L25_Ca, na.rm = TRUE))
+##Outreach Workers
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L26_Ca, na.rm = TRUE))
+##Transportation Personnel
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L27_Ca, na.rm = TRUE))
+##Eligibility Assistance Workers
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L27a_Ca, na.rm = TRUE))
+##Interpretation Personnel
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L27b_Ca, na.rm = TRUE))
+##Community Health Workers 
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L27c_Ca, na.rm = TRUE))
+##Other Enabling Services 
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L28_Ca, na.rm = TRUE))
+#Total Enabling Services Patients
 ##Visit Counts
 
 # Table 6A ----------------------------------------------------------------
