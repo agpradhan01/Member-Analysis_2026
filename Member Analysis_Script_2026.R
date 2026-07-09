@@ -1,11 +1,10 @@
 
-
 # (AP only) Establish Git Connection ------------------------------------------------
 gitcreds::gitcreds_set()
 # paste token when prompted -- selection, enter token if needed
 usethis::use_github()
 #currently using 'git push origin main' in Terminal to get around not having branch/head, which is stopping me from pushing from Git tab.
-# File Setup --------------------------------------------------------------
+# Load Packages and Import/Join Files --------------------------------------------------------------
 
 #install.packages(pacman)
 #pacman::p_load()
@@ -75,8 +74,9 @@ year_files <- list(
   "2024" = here("H802024.xlsx"))
 all_years <- imap(year_files, ~load_year(.x, .y))
 AAPCHOMembers20212025 <- bind_rows(all_years)
-
-# Cleaning/Checks ---------------------------------------------------------
+pacman::p_load(here, rio)
+ResultsFile <- import(here("Results.xlsx"))
+# Data Cleaning/Checks ---------------------------------------------------------
 ##Reporting years
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
@@ -100,24 +100,28 @@ AAPCHOMembers20212025 %>%
   skimr::skim(T3b_L2b_Cd)
 
 
+# Analysis ----------------------------------------------------------------
 # General  ----------------------------------------------------------------
 ##Statesterritories, urban/rural, patient count groupings, 
-AAPCHOMembers20212025 %>%
-  tabyl(ReportingYear, HealthCenterState) %>% 
-  adorn_totals(where = "col") %>% 
-  adorn_percentages(denominator = "row") %>% 
-  adorn_pct_formatting() %>% 
-  adorn_ns(position = "front") %>% 
-  adorn_title(
-    row_name = "Year",
-    col_name = "State",
-    placement = "combined") %>% # this is necessary to print as image
-  flextable::flextable() %>%    # convert to pretty image
-  flextable::autofit()          # format to one line per row 
-###States
+###States organized most to least
+AAAPCHOMembers20212025 %>%
+  tabyl(ReportingYear, HealthCenterState) %>%
+  adorn_totals(where = "col") %>%        # add Total FIRST before select
+  adorn_percentages(denominator = "row") %>%
+  adorn_pct_formatting() %>%
+  adorn_ns(position = "front") %>%
+  select(ReportingYear, CA, HI, NY, FM, MA, GU, MP, AR, IL, LA, OH, TX, WA, Total) %>%  # reorder AFTER all adorn steps
+  flextable::flextable() %>%
+  flextable::autofit()
+
+
+
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(total = sum(T3a_L39_Ca + T3a_L39_Cb, na.rm = TRUE))
+
+
+
 # AAPCHO Member Demographics (3A, 3B) -------------------------------------
 
 
@@ -352,7 +356,34 @@ AAPCHOMembers20212025 %>%
 
 
 # Table 5 - FTEs, Visits --------------------------------------------------
-###Visit Counts
+##FTEs 
+###Family Physicians T5_L1_Ca
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L1_Ca, na.rm = TRUE))
+###GPs T5_L2_Ca
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L2_Ca, na.rm = TRUE))
+###Internists T5_L3_Ca
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L3_Ca, na.rm = TRUE))
+###OB/GYNs T5_L4_Ca
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L4_Ca, na.rm = TRUE))
+###Peds T5_L5_Ca
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L5_Ca, na.rm = TRUE))
+###Other Specialty Physicians T5_L7_Ca
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L7_Ca, na.rm = TRUE))
+
+
+##Visit Counts
 
 # Table 6A ----------------------------------------------------------------
 
