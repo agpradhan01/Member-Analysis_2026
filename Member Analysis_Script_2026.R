@@ -404,19 +404,64 @@ AAPCHOMembers20212025 %>%
   ) %>%
   mutate(across(where(is.numeric), ~ round(.x, 2)))
 
-#Total NPs, PAs, CNMs
-
-#Total Medical Care Services
+#Total NPs, PAs, CNMs FTEs
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L10a_Ca, na.rm = TRUE))
+#Total Medical Care Services FTEs 
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L15_Ca, na.rm = TRUE))
 #Total Med Patients
-#Total Dental Services
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L15_Cc, na.rm = TRUE))
+#Total Dental Services FTEs
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L19_Ca, na.rm = TRUE))
 #Total Dental Patients
-#Total Mental Health Services
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L19_Cc, na.rm = TRUE))
+#Total Mental Health Services FTEs
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L20_Ca, na.rm = TRUE))
 #Total Mental Health Patients
-#SUD
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L20_Cc, na.rm = TRUE))
+#SUD FTEs
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L21_Ca, na.rm = TRUE))
 #SUD Patients
-#Total Vision Services
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L21_Cc, na.rm = TRUE))
+#Total Vision Services FTEs
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L22d_Ca, na.rm = TRUE))
 #Total Vision Patients
-#Pharmacy Personnel 
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L22d_Cc, na.rm = TRUE))
+#Pharmacy Personnel - 2021-2022
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T5_L23_Ca, na.rm = TRUE))
+#Pharmacy Personnel - 2023-2025 #left off here 
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(
+ClinicalPharm        = sum(T5_L1_Ca, na.rm = TRUE),
+PharmTech     = sum(T5_L2_Ca, na.rm = TRUE),
+OtherPharmPersonnel    = sum(T5_L3_Ca, na.rm = TRUE),
+TotalPharmPersonnel = sum(T5_L4_Ca, na.rm = TRUE)) 
+ 
+
 #Total Enabling Services 
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
@@ -453,10 +498,14 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(sum(T5_L28_Ca, na.rm = TRUE))
-#Total Enabling Services Patients
+#? Maybe some other services (QI, patient support personnel). Argument to be made that if clinical quality performance better than average (and services/staff-patient ratio), still cost effective if employing more FTEs/patient.
 ##Visit Counts
 
 # Table 6A ----------------------------------------------------------------
+##Tuberculosis ##need to check if this is new diagnosis or can include existing
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L3_Cb, na.rm = TRUE))
 
 
 # Table 6B ----------------------------------------------------------------
