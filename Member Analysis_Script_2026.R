@@ -827,6 +827,88 @@ AAPCHOMembers20212025 %>%
                         Twfc_L2.25_Cb)), na.rm = TRUE)))
 
 
+# CHQR 2022-2025 ----------------------------------------------------------
+
+#2022
+CHQR2022 <- read_excel("CHQR_Badge_Data 2021-2025.xlsx", sheet = "2022 CHQR Data") 
+
+
+#2023
+CHQR2023 <- read_excel("CHQR_Badge_Data 2021-2025.xlsx", sheet = "2023 CHQR Data") 
+
+#2024
+CHQR2024 <- read_excel("CHQR_Badge_Data 2021-2025.xlsx", sheet = "2024 CHQR Data")
+
+#2025
+CHQR2025 <- read_excel("CHQR_Badge_Data 2021-2025.xlsx", sheet = "2025 CHQR Data")
+
+# Combine on GrantNumber using full_join, to keep health centers that may drop from year to year.
+library(dplyr)
+
+CHQR2022 <- CHQR2022 %>% rename_with(~ paste0(., "_2022"), -`Grant Number`)
+CHQR2023 <- CHQR2023 %>% rename_with(~ paste0(., "_2023"), -`Grant Number`)
+CHQR2024 <- CHQR2024 %>% rename_with(~ paste0(., "_2024"), -`Grant Number`)
+CHQR2025 <- CHQR2025 %>% rename_with(~ paste0(., "_2025"), -`Grant Number`)
+
+CHQRcombined <- CHQR2022 %>%
+  full_join(CHQR2023, by = "Grant Number") %>%
+  full_join(CHQR2024, by = "Grant Number") %>%
+  full_join(CHQR2025, by = "Grant Number")
+
+CHQRcombined <- CHQRcombined %>%
+  select(-starts_with("HC Type"))
+
+#AAPCHOMembers already subsetted from start 
+
+CHQR_AAPCHOMembers <- CHQRcombined %>%
+  filter(`Grant Number` %in% AAPCHOMembers)
+
+View(CHQR_AAPCHOMembers)
+
+
+
+#HCQL Gold 
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Gold_2022` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Gold_2023` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Gold_2024` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Gold_2025` == "Yes", na.rm = TRUE)
+#HCQL Silver
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Silver_2022` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Silver_2023` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Silver_2024` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Silver_2025` == "Yes", na.rm = TRUE)
+#HCQL Bronze 
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Bronze_2022` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Bronze_2023` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Bronze_2024` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Bronze_2025` == "Yes", na.rm = TRUE)
+
+#Any badge, by year
+CHQR_AAPCHOMembers %>%
+  summarise(
+    total_AAPCHO_badges_2022 = sum(across(ends_with("2022"), ~ .x == "Yes"), na.rm = TRUE),
+    total_AAPCHO_badges_2023 = sum(across(ends_with("2023"), ~ .x == "Yes"), na.rm = TRUE),
+    total_AAPCHO_badges_2024 = sum(across(ends_with("2024"), ~ .x == "Yes"), na.rm = TRUE),
+    total_AAPCHO_badges_2025 = sum(across(ends_with("2025"), ~ .x == "Yes"), na.rm = TRUE)
+  )
+
+CHQRcombined %>%
+  summarise(
+    total_badges_2022 = sum(across(ends_with("2022"), ~ .x == "Yes"), na.rm = TRUE),
+    total_badges_2023 = sum(across(ends_with("2023"), ~ .x == "Yes"), na.rm = TRUE),
+    total_badges_2024 = sum(across(ends_with("2024"), ~ .x == "Yes"), na.rm = TRUE),
+    total_badges_2025 = sum(across(ends_with("2025"), ~ .x == "Yes"), na.rm = TRUE)
+    )
+
+#2021 H80s = 1373, AAPCHO Members = 2.03933% of H80s
+#2.767662% earned badge
+#2022 H80s = 1370, AAPCHO Members = 2.043796% of H80s
+#2.773723% earned badge 
+#2023 H80s = 1363, AAPCHO Members = 2.054292% of H80s
+#3.301541% earned a badge 
+#2024 H80s = 1359, AAPCHO Members = 2.060338% of H80s
+#4.19426% earned badge 
+
 # DATA VIZ ----------------------------------------------------------------
 ##Patient Counts
 
