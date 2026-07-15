@@ -587,7 +587,56 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(sum(T6a_L3_Cb, na.rm = TRUE))
+##HepB
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L4a_Cb, na.rm = TRUE))
+##Asthma
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L5_Cb, na.rm = TRUE))
 
+##Diabetes mellitus 
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L9_Cb, na.rm = TRUE))
+
+
+##Heart Disease(selected) 
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L10_Cb, na.rm = TRUE))
+
+##Hypertension T6a_L11_Cb
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L11_Cb, na.rm = TRUE))
+
+##VISITS Exposure to Heat or Cold T6a_L14_Ca
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L14_Ca, na.rm = TRUE))
+
+
+##Overweight and obesity T6a_L14a_Cb
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L14a_Cb, na.rm = TRUE))
+
+##Perinatal and Neonatal conditions T6a_L16_Cb
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L16_Cb, na.rm = TRUE))
+
+##Alcohol-related disorders
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L18_Cb, na.rm = TRUE))
+
+##IPV  T6a_L20f_Cb
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L20f_Cb, na.rm = TRUE))
 
 # Table 6BClinicalMeasures ----------------------------------------------------------------
 
