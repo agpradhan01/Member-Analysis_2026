@@ -249,8 +249,9 @@ AAPCHOMembers20212025 %>%
 
 
 #AAPCHO Members - Patient Demographics
+#Members serve 24.76% of AANHPI CHC patiets in 2024 -- 352,285/1,422,970 
 ##Total Asian 2021-2025 
-Total_Asian <- AAPCHOMembers20212025 %>%
+AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(total = sum(T3b_L1_Cd, na.rm = TRUE))
 ##Total NH 2021-2025
@@ -363,8 +364,8 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
-    total = sum(T4_L2_Ca, na.rm = TRUE) , sum(T4_L3_Ca, na.rm = TRUE)
-  )
+    total = sum(rowSums(across(c(T4_L2_Ca,T4_L3_Ca)), na.rm = TRUE)))
+
 
 #Over 200% FPL
 AAPCHOMembers20212025 %>%
@@ -395,46 +396,39 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
-    total = sum(T4_L8_Ca, na.rm = TRUE) , sum(T4_L8_Cb, na.rm = TRUE)
-  )
+    total = sum(rowSums(across(c(T4_L8_Ca, T4_L8_Cb)), na.rm = TRUE)))
 
 ##Dually Eligible (Medicare and Medicaid)
 ###
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
-    total = sum(T4_L9a_Ca, na.rm = TRUE) , sum(T4_L9a_Cb, na.rm = TRUE)
-  )
+    total = sum(rowSums(across(c(T4_L9a_Ca, T4_L9a_Cb)), na.rm = TRUE)))
 ##Total Medicare*includes dually eligible - HRSA counts dually eligible towards Medicaid
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
-    total = sum(T4_L9_Ca, na.rm = TRUE) , sum(T4_L9_Cb, na.rm = TRUE)
-  )
+    total = sum(rowSums(across(c(T4_L9_Ca,T4_L9_Cb)), na.rm = TRUE)))
 ##Other Public Ins Non-Chip
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
-    total = sum(T4_L10a_Ca, na.rm = TRUE) , sum(T4_L10a_Cb, na.rm = TRUE)
-  )
+    total = sum(rowSums(across(c(T4_L10a_Ca, T4_L10a_Cb)), na.rm = TRUE)))
 ##Other Public Ins Chip
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
-    total = sum(T4_L10_Ca, na.rm = TRUE) , sum(T4_L10_Cb, na.rm = TRUE)
-  )
+    total = sum(rowSums(across(c(T4_L10_Ca,T4_L10_Cb)), na.rm = TRUE)))
 ##Total Public Insurance 
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
-    total = sum(T4_L10b_Ca, na.rm = TRUE) , sum(T4_L10b_Cb, na.rm = TRUE)
-  )
+    total = sum(rowSums(across(c(T4_L10b_Ca,T4_L10b_Cb)), na.rm = TRUE)))
 ##Private Insurance
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
-    total = sum(T4_L11_Ca, na.rm = TRUE) , sum(T4_L11_Ca, na.rm = TRUE)
-  )
+    total = sum(rowSums(across(c(T4_L11_Ca,T4_L11_Ca)), na.rm = TRUE)))
 
 
 # Table 5 - FTEs, Visits --------------------------------------------------
@@ -958,6 +952,246 @@ CHQRcombined %>%
 #2024 H80s = 1359, AAPCHO Members = 2.060338% of H80s
 #4.19426% earned badge 
 
+# Data Viz - HTML ---------------------------------------------------------
+p_load(tigris, dplyr, leaflet)
+ states <- states(cb=T)
+ states %>%
+   leaflet() %>%
+   addTiles() %>%
+   addPolygons(popup~NAME)
+ 
+ 
+ library(dplyr)
+ library(tidyr)
+ 
+ # ------------------------------------------------------------
+ # FACT 1 & 2: Patient count + growth trend (2021 -> 2024)
+ # ------------------------------------------------------------
+ patient_counts <- AAPCHOMembers20212025 %>%
+   group_by(`GrantNumber`, ReportingYear) %>%
+   summarise(
+     patient_count = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)),
+     .groups = "drop"
+   )
+ 
+ patient_trend <- patient_counts %>%
+   filter(ReportingYear %in% c(2021, 2024)) %>%
+   pivot_wider(names_from = ReportingYear, values_from = patient_count, names_prefix = "patients_") %>%
+   mutate(
+     growth_pct = round((patients_2024 - patients_2021) / patients_2021 * 100, 1),
+     patient_growth_trend = paste0(ifelse(growth_pct >= 0, "+", ""), growth_pct, "% since 2021")
+   )
+ 
+ # Keep just the current patient count (2024) + the trend label
+ fact_1_2 <- patient_trend %>%
+   select(`GrantNumber`, patient_count_display = patients_2024, patient_growth_trend)
+ 
+ # ------------------------------------------------------------
+ # FACT 3: Racial/ethnic minority patient count (2024)
+ # ------------------------------------------------------------
+ minority_patients <- AAPCHOMembers20212025 %>%
+   filter(ReportingYear == 2024) %>%
+   group_by(`GrantNumber`) %>%
+   summarise(
+     minority_patient_count = sum(
+       rowSums(across(c(T3b_L1_Cd, T3b_L2a_Cd, T3b_L2b_Cd, T3b_L3_Cd, T3b_L4_Cd, T3b_L6_Cd, T3b_L5_Ca)),
+               na.rm = TRUE),
+       na.rm = TRUE
+     ),
+     .groups = "drop"
+   )
+ 
+ # ------------------------------------------------------------
+ # Join facts 1-3 into one wide table (one row per organization)
+ # ------------------------------------------------------------
+ facts_1_to_3 <- fact_1_2 %>%
+   inner_join(minority_patients, by = "GrantNumber")
+ 
+ # Sanity check
+ nrow(facts_1_to_3)  # should be 28
+ print(facts_1_to_3)
+ 
+ # ------------------------------------------------------------
+ # FACT 4: % Public Insurance and % Uninsured (separate) — 2024
+ # ------------------------------------------------------------
+ public_insurance <- AAPCHOMembers20212025 %>%
+   group_by(`GrantNumber`, ReportingYear) %>%
+   summarise(
+     public_insurance_total = sum(rowSums(across(c(T4_L10b_Ca, T4_L10b_Cb)), na.rm = TRUE)),
+     .groups = "drop"
+   )
+ 
+ uninsured <- AAPCHOMembers20212025 %>%
+   group_by(`GrantNumber`, ReportingYear) %>%
+   summarise(
+     uninsured_total = sum(rowSums(across(c(T4_L7_Ca, T4_L7_Cb)), na.rm = TRUE)),
+     .groups = "drop"
+   )
+ 
+ insurance_status <- public_insurance %>%
+   inner_join(uninsured, by = c("GrantNumber", "ReportingYear")) %>%
+   inner_join(patient_counts, by = c("GrantNumber", "ReportingYear")) %>%
+   filter(ReportingYear == 2024) %>%
+   mutate(
+     pct_public_insurance = round(public_insurance_total / patient_count * 100, 1),
+     pct_uninsured = round(uninsured_total / patient_count * 100, 1)
+   ) %>%
+   select(`GrantNumber`, pct_public_insurance, pct_uninsured)
+ 
+ # Join into the growing final table
+ facts_1_to_4 <- facts_1_to_3 %>%
+   inner_join(insurance_status, by = "GrantNumber")
+ 
+ nrow(facts_1_to_4)  # should still be 28
+ print(facts_1_to_4)
+ # ------------------------------------------------------------
+ # FACT 5: % of patients at 100%+ FPL — 2024
+ # ------------------------------------------------------------
+ fpl_over_100 <- AAPCHOMembers20212025 %>%
+   group_by(`GrantNumber`, ReportingYear) %>%
+   summarise(
+     fpl_over_100_total = sum(rowSums(across(c(T4_L2_Ca, T4_L3_Ca, T4_L4_Ca)), na.rm = TRUE)),
+     .groups = "drop"
+   )
+ 
+ pct_fpl_over_100 <- fpl_over_100 %>%
+   inner_join(patient_counts, by = c("GrantNumber", "ReportingYear")) %>%
+   filter(ReportingYear == 2024) %>%
+   mutate(pct_100_fpl = round(fpl_over_100_total / patient_count * 100, 1)) %>%
+   select(`GrantNumber`, pct_100_fpl)
+ 
+ # Join into the growing final table
+ facts_1_to_5 <- facts_1_to_4 %>%
+   inner_join(pct_fpl_over_100, by = "GrantNumber")
+ 
+ nrow(facts_1_to_5)  # should still be 28
+ print(facts_1_to_5)
+ 
+ AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(sum(T3b_L12_Ca, na.rm = TRUE))
+ 
+ # ------------------------------------------------------------
+ # FACT 6: % served in a language other than English — 2024
+ # ------------------------------------------------------------
+ LOE <- AAPCHOMembers20212025 %>%
+   group_by(`GrantNumber`, ReportingYear) %>%
+   summarise(
+     LOE_total = sum(T3b_L12_Ca, na.rm = TRUE),
+     .groups = "drop"
+   )
+ 
+ pct_LOE <- LOE %>%
+   inner_join(patient_counts, by = c("GrantNumber", "ReportingYear")) %>%
+   filter(ReportingYear == 2024) %>%
+   mutate(pct_LOE = round(LOE_total / patient_count * 100, 1)) %>%
+   select(`GrantNumber`, pct_LOE)
+ 
+ # Join into the growing final table
+ facts_1_to_6 <- facts_1_to_5 %>%
+   inner_join(pct_LOE, by = "GrantNumber")
+ 
+ nrow(facts_1_to_6)  # should still be 28
+ print(facts_1_to_6)
+ # ------------------------------------------------------------
+ # FACT 7: Change in clinical quality measures, 2021 -> 2024
+ # Hypertension Control + Diabetes Controlled (inverse of uncontrolled)
+ # ------------------------------------------------------------
+ 
+ # Hypertension control ratio, per org per year
+ hypertension_ratio <- AAPCHOMembers20212025 %>%
+   group_by(GrantNumber, ReportingYear) %>%
+   summarise(
+     hypertension_ratio = sum((T7_Li_C2c / T7_Li_C2b) * T7_Li_C2a, na.rm = TRUE) /
+       sum(T7_Li_C2a, na.rm = TRUE),
+     .groups = "drop"
+   )
+ 
+ # Diabetes CONTROLLED ratio = 1 - uncontrolled ratio, per org per year
+ diabetes_controlled_ratio <- AAPCHOMembers20212025 %>%
+   group_by(GrantNumber, ReportingYear) %>%
+   summarise(
+     diabetes_uncontrolled_ratio = sum((T7_Li_C3f / T7_Li_C3b) * T7_Li_C3a, na.rm = TRUE) /
+       sum(T7_Li_C3a, na.rm = TRUE),
+     .groups = "drop"
+   ) %>%
+   mutate(diabetes_controlled_ratio = 1 - diabetes_uncontrolled_ratio)
+ 
+ # ------------------------------------------------------------
+ # Combine both measures into one average quality score, per org per year
+ # ------------------------------------------------------------
+ quality_combined <- hypertension_ratio %>%
+   inner_join(diabetes_controlled_ratio, by = c("GrantNumber", "ReportingYear")) %>%
+   mutate(
+     quality_score = (hypertension_ratio + diabetes_controlled_ratio) / 2
+   )
+ 
+ # ------------------------------------------------------------
+ # Calculate 2021 -> 2024 change
+ # ------------------------------------------------------------
+ quality_change <- quality_combined %>%
+   filter(ReportingYear %in% c(2021, 2024)) %>%
+   select(GrantNumber, ReportingYear, quality_score) %>%
+   pivot_wider(names_from = ReportingYear, values_from = quality_score, names_prefix = "quality_") %>%
+   mutate(
+     quality_change_pts = round((quality_2024 - quality_2021) * 100, 1),
+     quality_measure_change = paste0(ifelse(quality_change_pts >= 0, "+", ""), quality_change_pts, " pts (2021-2024)")
+   ) %>%
+   select(GrantNumber, quality_measure_change)
+ 
+ # Join into the growing final table
+ facts_1_to_7 <- facts_1_to_6 %>%
+   inner_join(quality_change, by = "GrantNumber")
+ 
+ nrow(facts_1_to_7)  # should still be 28
+ print(facts_1_to_7)
+ 
+ # ------------------------------------------------------------
+ # FACT 8: Cost per patient — 2024
+ # ------------------------------------------------------------
+ total_cost <- AAPCHOMembers20212025 %>%
+   group_by(GrantNumber, ReportingYear) %>%
+   summarise(
+     total_cost = sum(T8a_L17_Cc, na.rm = TRUE),
+     .groups = "drop"
+   )
+ 
+ cost_per_patient <- total_cost %>%
+   inner_join(patient_counts, by = c("GrantNumber", "ReportingYear")) %>%
+   filter(ReportingYear == 2024) %>%
+   mutate(
+     cost_per_patient_raw = total_cost / patient_count,
+     cost_per_patient = paste0("$", format(round(cost_per_patient_raw, 0), big.mark = ","))
+   ) %>%
+   select(GrantNumber, cost_per_patient)
+ 
+ # Join into the growing final table
+ facts_1_to_8 <- facts_1_to_7 %>%
+   inner_join(cost_per_patient, by = "GrantNumber")
+ 
+ nrow(facts_1_to_8)  # should still be 28
+ print(facts_1_to_8)
+ 
+ # ------------------------------------------------------------
+ # FACT 9: FTE count (incl. pre/post-grad) — 2024
+ # ------------------------------------------------------------
+ fte_total <- AAPCHOMembers20212025 %>%
+   filter(ReportingYear == 2024) %>%
+   group_by(GrantNumber) %>%
+   summarise(
+     fte_total = sum(T5_L34_Ca, na.rm = TRUE),
+     .groups = "drop"
+   )
+ 
+ # Join into the final table
+ facts_1_to_9 <- facts_1_to_8 %>%
+   inner_join(fte_total, by = "GrantNumber")
+ 
+ nrow(facts_1_to_9)  # should still be 28
+ print(facts_1_to_9)
+ 
+ 
+ 
 # DATA VIZ ----------------------------------------------------------------
 ##Patient Counts
 
@@ -995,7 +1229,9 @@ CHQRcombined %>%
 #        y = "Number of AAPCHO Member Health Centers") ,
 #   theme_minimal()
 
-# ##DATA VIZ## for map 
+
+
+## FOR MAP
 # #downloading urbnmapr for better viz of territories#
 # gitcreds::gitcreds_set()
 # #new token through personal gmail 
