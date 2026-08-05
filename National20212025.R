@@ -1,3 +1,7 @@
+##Analysis notes
+#Suppression applied to Table 5 (all years), Table 8A (2021-2023), Table 9D
+
+
 read_uds <- function(file, sheet, col_select = NULL, filter_ids = NULL) {
   df <- read_excel(file, sheet = sheet)
   
@@ -161,3 +165,227 @@ dropped_all
 National20212024 %>%
   count(GrantNumber, ReportingYear) %>%
   filter(n > 1)
+
+
+# Calculations for Narrative ----------------------------------------------
+
+# A -----------------------------------------------------------------------
+#Members total patients
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(total = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)))
+# 1 2021          555569
+# 2 2022          580675
+# 3 2023          607872
+# 4 2024          660946
+##validated against Excel
+#National total patients 
+National20212024%>%
+  group_by(ReportingYear) %>%
+  summarise(total = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)))
+# 1 2021          30193278
+# 2 2022          30517276
+# 3 2023          31277341
+# 4 2024          32387774
+##validated against HRSA website
+#Members vs. National patient growth, 2021-2024
+#((2025-2021)/2021)*100
+###Grouped bar
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+members_totalpatients <- AAPCHOMembers20212024 %>%
+  filter(ReportingYear %in% c(2021, 2024)) %>%
+  group_by(ReportingYear) %>%
+  summarise(
+    total_patients = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  mutate(Group = "AAPCHO Members")
+
+national_totalpatients <- National20212024 %>%
+  filter(ReportingYear %in% c(2021, 2024)) %>%
+  group_by(ReportingYear) %>%
+  summarise(
+    total_patients = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  mutate(Group = "National")
+
+
+combined_totals <- bind_rows(members_totalpatients, national_totalpatients)
+
+growth_labels <- combined_totals %>%
+  tidyr::pivot_wider(names_from = ReportingYear, values_from = total_patients, names_prefix = "y") %>%
+  mutate(
+    growth_pct = round((y2024 - y2021) / y2021 * 100, 1),
+    label = paste0(ifelse(growth_pct >= 0, "+", ""), growth_pct, "%")
+  )
+
+
+combined_totals$ReportingYear <- factor(combined_totals$ReportingYear, levels = c(2021, 2024))
+
+
+ggplot(combined_totals, aes(x = as.character(ReportingYear), y = total_patients, fill = ReportingYear)) +
+  geom_col(width = 0.6) +
+  geom_text(aes(label = comma(total_patients)), vjust = -0.5, size = 3.5) +
+  geom_text(
+    data = growth_labels,
+    aes(x = "2024", y = y2024, label = label),
+    inherit.aes = FALSE,
+    vjust = -2.2,
+    fontface = "bold",
+    color = "#B2334F",
+    size = 4.5
+  ) +
+  facet_wrap(~Group, scales = "free_y") +
+  scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.2))) +
+  scale_fill_manual(values = c("2021" = "#B29633", "2024" = "#B25833")) +
+  labs(
+    title = "Total Patients Served",
+    x = NULL,
+    y = "Total Patients"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    text = element_text(family = "Verdana"),
+    legend.position = "none",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    strip.text = element_text(face = "bold", size = 12)
+    )
+#Total Visits - T5_L34_Cb, T5_L34_Cb2
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(total = sum(rowSums(across(c(T5_L34_Cb, T5_L34_Cb2)), na.rm = TRUE)))
+##Medical Visits
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(total = sum(rowSums(across(c(T5_L15_Cb, T5_L15_Cb2)), na.rm = TRUE)))
+
+##Dental Visits
+AAPCHOMembers20212025 %>%
+group_by(ReportingYear) %>%
+  summarise(total = sum(rowSums(across(c(T5_L19_Cb, T5_L19_Cb2)), na.rm = TRUE)))
+
+##Mental Health Visits
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(total = sum(rowSums(across(c(T5_L20_Cb, T5_L20_Cb2)), na.rm = TRUE)))
+
+##Vision Visits
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(total = sum(rowSums(across(c(T5_L22d_Cb, T5_L22d_Cb2)), na.rm = TRUE)))
+
+
+##Enabling Services
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(total = sum(rowSums(across(c(T5_L29_Cb, T5_L29_Cb2)), na.rm = TRUE)))
+##Bar chart of services, 2024
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+
+Membervisits_2024 <- AAPCHOMembers20212024 %>%
+  filter(ReportingYear == 2024) %>%
+  summarise(
+    `Medical Service Visits` = sum(rowSums(across(c(T5_L15_Cb, T5_L15_Cb2)), na.rm = TRUE)),      # <- your column
+    `Dental Service Visits` = sum(rowSums(across(c(T5_L19_Cb, T5_L19_Cb2)), na.rm = TRUE)),       # <- your column
+    `Mental Health Visits` = sum(rowSums(across(c(T5_L20_Cb, T5_L20_Cb2)), na.rm = TRUE)),        # <- your column
+    `Vision Visits` = sum(rowSums(across(c(T5_L22d_Cb, T5_L22d_Cb2)), na.rm = TRUE)),                # <- your column
+    `Enabling Services` = sum(rowSums(across(c(T5_L29_Cb, T5_L29_Cb2)), na.rm = TRUE))             # <- your column
+  ) %>%
+  pivot_longer(everything(), names_to = "Service", values_to = "Visits")
+
+ggplot(Membervisits_2024, aes(x = reorder(Service, -Visits), y = Visits, fill = Service)) +
+  geom_col(width = 0.6) +
+  geom_text(aes(label = comma(Visits)), vjust = -0.5, size = 3.5) +
+  scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.15))) +
+  scale_fill_manual(values = c(
+    "Medical Service Visits" = "#B2334F",
+    "Dental Service Visits" = "#B25833",
+    "Mental Health Visits" = "#B29633",
+    "Vision Visits" = "#5C7A5A",
+    "Enabling Services" = "#3C6E8A"
+  )) +
+  labs(
+    title = "2024 Member Visits by Service Type",
+    x = NULL,
+    y = "Visits"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    text = element_text(family = "Verdana"),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 20, hjust = 1),
+   legend.position = "none"
+  )
+##Enabling services proportion of total stacked bar 
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+
+members_enablingvisits <- AAPCHOMembers20212024 %>%
+  filter(ReportingYear == 2024) %>%
+  summarise(
+    enabling = sum(rowSums(across(c(T5_L29_Cb, T5_L29_Cb2)), na.rm = TRUE)),   
+    total = sum(rowSums(across(c(T5_L34_Cb, T5_L34_Cb2)), na.rm = TRUE))           
+  ) %>%
+  mutate(
+    other = total - enabling,
+    Group = "Members"
+  )
+
+national_enablingvisits <- National20212024 %>%
+  filter(ReportingYear == 2024) %>%
+  summarise(
+    enabling = sum(rowSums(across(c(T5_L29_Cb, T5_L29_Cb2)), na.rm = TRUE)),   
+    total = sum(rowSums(across(c(T5_L34_Cb, T5_L34_Cb2)), na.rm = TRUE)) 
+  ) %>%
+  mutate(
+    other = total - enabling,
+    Group = "National"
+  )
+
+
+combined <- bind_rows(members_enablingvisits, national_enablingvisits) %>%
+  select(Group, `Enabling Services` = enabling, `All Other Services` = other) %>%
+  pivot_longer(-Group, names_to = "Category", values_to = "Visits") %>%
+  group_by(Group) %>%
+  mutate(pct = Visits / sum(Visits)) %>%
+  ungroup()
+
+
+ggplot(combined, aes(x = Group, y = pct, fill = Category)) +
+  geom_col(width = 0.5) +
+  geom_text(
+    aes(label = percent(pct, accuracy = 0.1)),
+    position = position_stack(vjust = 0.5),
+    color = "white",
+    fontface = "bold",
+    size = 4
+  ) +
+  scale_y_continuous(labels = percent) +
+  scale_fill_manual(values = c(
+    "Enabling Services" = "#3C6E8A",
+    "All Other Services" = "#CBD5C6"
+  )) +
+  labs(
+    title = "Enabling Services as Percent of Total Visits (2024)",
+    x = NULL,
+    y = "Share of Total Visits",
+    fill = NULL
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    text = element_text(family = "Verdana"),
+     plot.title = element_text(face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    legend.position = "top"
+  )
+
+

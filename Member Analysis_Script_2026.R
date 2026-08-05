@@ -4,7 +4,7 @@ gitcreds::gitcreds_set()
 # paste token when prompted -- selection, enter token if needed
 usethis::use_github()
 #currently using 'git push origin main' in Terminal to get around not having branch/head, which is stopping me from pushing from Git tab.
-# Load Packages and Import/Join Files --------------------------------------------------------------
+# Load Data, Packages, Join Files --------------------------------------------------------------
 
 #install.packages(pacman)
 #pacman::p_load()
@@ -30,7 +30,7 @@ read_aapcho <- function(file, sheet, col_select = NULL) {
   df[keep] |> filter(GrantNumber %in% AAPCHOMembers)
 }
 
-load_year <- function(file, year) {
+load_year <- function(file) {
   
   hci <- read_excel(file, sheet = "HealthCenterInfo") |>
     select(GrantNumber, ReportingYear, HealthCenterName, HealthCenterCity,
@@ -69,12 +69,15 @@ load_year <- function(file, year) {
   
   merged
 }
+
 year_files <- list(
-  "2021" = here("H802021.xlsx"),
-  "2022" = here("H802022.xlsx"),
-  "2023" = here("H802023.xlsx"),
-  "2024" = here("H802024.xlsx"))
-all_years <- imap(year_files, ~load_year(.x, .y))
+  here("H802021.xlsx"),
+  here("H802022.xlsx"),
+  here("H802023.xlsx"),
+  here("H802024.xlsx")
+)
+
+all_years <- map(year_files, load_year)
 AAPCHOMembers20212025 <- bind_rows(all_years)
 #Results File -- need to recommit to Git 
 pacman::p_load(here, rio)
@@ -126,7 +129,7 @@ AAPCHOMembers20212025 %>%
 
 
 # AAPCHO Member Demographics (3A, 3B) -------------------------------------
-
+ 
 
 #AAPCHO Members Count
 #sum(AAPCHOMembers20212025$T3a_L39_Ca[AAPCHOMembers20212025$ReportingYear == "2024"], na.rm = TRUE)
@@ -232,7 +235,7 @@ AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(total = sum(rowSums(across(c(T3a_L33_Ca,
                           T3a_L33_Cb)), na.rm = TRUE)))
-##65,
+##65,+(?)
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(total = sum(rowSums(across(c(T3a_L34_Ca,
@@ -527,7 +530,7 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(sum(T5_L23_Ca, na.rm = TRUE))
-#Pharmacy Personnel - 2023-2025 #left off here 
+#Pharmacy Personnel - 2023-2025 
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
@@ -869,21 +872,29 @@ AAPCHOMembers20212025 %>%
                         Twfc_L2.25_Ca,
                         Twfc_L2.25_Cb)), na.rm = TRUE)))
 
+# National Comparisons (2021-2025) ----------------------------------------
+#Will want to compare
+##Clinical quality measure performance 
+###Trend over 5 years (average growth trend), compare to Members' average growth trend 
 
-# CHQR 2022-2025 ----------------------------------------------------------
 
+
+# CHQR 2022-2026 ----------------------------------------------------------
+##Cleaning: standardized capitalization of Grant Number in Excel prior to loading in.
 #2022
-CHQR2022 <- read_excel("CHQR_Badge_Data 2021-2025.xlsx", sheet = "2022 CHQR Data") 
-
+CHQR2022 <- read_excel("CHQR_Badge_Data 2021-2026.xlsx", sheet = "2022 CHQR Data") 
 
 #2023
-CHQR2023 <- read_excel("CHQR_Badge_Data 2021-2025.xlsx", sheet = "2023 CHQR Data") 
+CHQR2023 <- read_excel("CHQR_Badge_Data 2021-2026.xlsx", sheet = "2023 CHQR Data") 
 
 #2024
-CHQR2024 <- read_excel("CHQR_Badge_Data 2021-2025.xlsx", sheet = "2024 CHQR Data")
+CHQR2024 <- read_excel("CHQR_Badge_Data 2021-2026.xlsx", sheet = "2024 CHQR Data")
 
 #2025
-CHQR2025 <- read_excel("CHQR_Badge_Data 2021-2025.xlsx", sheet = "2025 CHQR Data")
+CHQR2025 <- read_excel("CHQR_Badge_Data 2021-2026.xlsx", sheet = "2025 CHQR Data")
+
+#2026
+CHQR2026 <- read_excel("CHQR_Badge_Data 2021-2026.xlsx", sheet = "2026 CHQR Data")
 
 # Combine on GrantNumber using full_join, to keep health centers that may drop from year to year.
 library(dplyr)
@@ -892,11 +903,13 @@ CHQR2022 <- CHQR2022 %>% rename_with(~ paste0(., "_2022"), -`Grant Number`)
 CHQR2023 <- CHQR2023 %>% rename_with(~ paste0(., "_2023"), -`Grant Number`)
 CHQR2024 <- CHQR2024 %>% rename_with(~ paste0(., "_2024"), -`Grant Number`)
 CHQR2025 <- CHQR2025 %>% rename_with(~ paste0(., "_2025"), -`Grant Number`)
+CHQR2026 <- CHQR2026 %>% rename_with(~ paste0(., "_2026"), -`Grant Number`)
 
 CHQRcombined <- CHQR2022 %>%
   full_join(CHQR2023, by = "Grant Number") %>%
   full_join(CHQR2024, by = "Grant Number") %>%
-  full_join(CHQR2025, by = "Grant Number")
+  full_join(CHQR2025, by = "Grant Number") %>%
+  full_join(CHQR2026, by = "Grant Number")
 
 CHQRcombined <- CHQRcombined %>%
   select(-starts_with("HC Type"))
@@ -906,42 +919,71 @@ CHQRcombined <- CHQRcombined %>%
 CHQR_AAPCHOMembers <- CHQRcombined %>%
   filter(`Grant Number` %in% AAPCHOMembers)
 
+
 View(CHQR_AAPCHOMembers)
 
-
+library(openxlsx)
+write.xlsx(CHQR_AAPCHOMembers, "MemberBadges_2021-2026.xlsx")
 
 #HCQL Gold 
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Gold_2022` == "Yes", na.rm = TRUE)
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Gold_2023` == "Yes", na.rm = TRUE)
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Gold_2024` == "Yes", na.rm = TRUE)
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Gold_2025` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Gold_2026` == "Yes", na.rm = TRUE)
 #HCQL Silver
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Silver_2022` == "Yes", na.rm = TRUE)
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Silver_2023` == "Yes", na.rm = TRUE)
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Silver_2024` == "Yes", na.rm = TRUE)
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Silver_2025` == "Yes", na.rm = TRUE)
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Silver_2026` == "Yes", na.rm = TRUE)
 #HCQL Bronze 
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Bronze_2022` == "Yes", na.rm = TRUE)
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Bronze_2023` == "Yes", na.rm = TRUE)
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Bronze_2024` == "Yes", na.rm = TRUE)
 sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Bronze_2025` == "Yes", na.rm = TRUE)
-
+sum(CHQR_AAPCHOMembers$`Health Center Quality Leader - Bronze_2026` == "Yes", na.rm = TRUE)
 #Any badge, by year
+
 CHQR_AAPCHOMembers %>%
   summarise(
     total_AAPCHO_badges_2022 = sum(across(ends_with("2022"), ~ .x == "Yes"), na.rm = TRUE),
     total_AAPCHO_badges_2023 = sum(across(ends_with("2023"), ~ .x == "Yes"), na.rm = TRUE),
     total_AAPCHO_badges_2024 = sum(across(ends_with("2024"), ~ .x == "Yes"), na.rm = TRUE),
-    total_AAPCHO_badges_2025 = sum(across(ends_with("2025"), ~ .x == "Yes"), na.rm = TRUE)
+    total_AAPCHO_badges_2025 = sum(across(ends_with("2025"), ~ .x == "Yes"), na.rm = TRUE),
+    total_AAPCHO_badges_2026 = sum(across(ends_with("2026"), ~ .x == "Yes"), na.rm = TRUE)
   )
-
 CHQRcombined %>%
   summarise(
     total_badges_2022 = sum(across(ends_with("2022"), ~ .x == "Yes"), na.rm = TRUE),
     total_badges_2023 = sum(across(ends_with("2023"), ~ .x == "Yes"), na.rm = TRUE),
     total_badges_2024 = sum(across(ends_with("2024"), ~ .x == "Yes"), na.rm = TRUE),
-    total_badges_2025 = sum(across(ends_with("2025"), ~ .x == "Yes"), na.rm = TRUE)
+    total_badges_2025 = sum(across(ends_with("2025"), ~ .x == "Yes"), na.rm = TRUE),
+    total_badges_2026 = sum(across(ends_with("2026"), ~ .x == "Yes"), na.rm = TRUE)
     )
+
+
+#Earned at least one - Members
+MemberBadges2026 <- CHQR_AAPCHOMembers %>%
+  group_by(`Grantee Name_2026`) %>%
+  summarise(
+    Badges_Earned_2026 = sum(across(ends_with("2026"), ~ .x == "Yes"), na.rm = TRUE),
+    .groups = "drop"
+  )
+
+write.xlsx(MemberBadges2026, "MemberBadges_2026.xlsx")
+
+#Earned at least one - National
+NationalBadges2026 <- CHQRcombined %>%
+  group_by(`Grantee Name_2026`) %>%
+  summarise(
+    Badges_Earned_2026 = sum(across(ends_with("2026"), ~ .x == "Yes"), na.rm = TRUE),
+    .groups = "drop"
+  )
+earned_at_least_one <- NationalBadges2026 %>%
+  filter(Badges_Earned_2026 > 0)
+write.xlsx(earned_at_least_one, "NationalEarnedatleast1_2026.xlsx")
+#1218/1356 = 90%
 
 #2021 H80s = 1373, AAPCHO Members = 2.03933% of H80s
 #2.767662% earned badge
@@ -953,6 +995,7 @@ CHQRcombined %>%
 #4.19426% earned badge 
 
 # Data Viz - HTML ---------------------------------------------------------
+##"Dashboard" hosted through GitHub. 
 p_load(tigris, dplyr, leaflet)
  states <- states(cb=T)
  states %>%
@@ -964,9 +1007,8 @@ p_load(tigris, dplyr, leaflet)
  library(dplyr)
  library(tidyr)
  
- # ------------------------------------------------------------
- # FACT 1 & 2: Patient count + growth trend (2021 -> 2024)
- # ------------------------------------------------------------
+ # FACTS #1 AND 2: Patient count + growth trend (2021 -> 2024)
+
  patient_counts <- AAPCHOMembers20212025 %>%
    group_by(`GrantNumber`, ReportingYear) %>%
    summarise(
@@ -986,9 +1028,9 @@ p_load(tigris, dplyr, leaflet)
  fact_1_2 <- patient_trend %>%
    select(`GrantNumber`, patient_count_display = patients_2024, patient_growth_trend)
  
- # ------------------------------------------------------------
- # FACT 3: Racial/ethnic minority patient count (2024)
- # ------------------------------------------------------------
+ # FACT #3 
+ # Racial/ethnic minority patient count (2024)
+ 
  minority_patients <- AAPCHOMembers20212025 %>%
    filter(ReportingYear == 2024) %>%
    group_by(`GrantNumber`) %>%
@@ -1001,9 +1043,9 @@ p_load(tigris, dplyr, leaflet)
      .groups = "drop"
    )
  
- # ------------------------------------------------------------
+
  # Join facts 1-3 into one wide table (one row per organization)
- # ------------------------------------------------------------
+
  facts_1_to_3 <- fact_1_2 %>%
    inner_join(minority_patients, by = "GrantNumber")
  
@@ -1011,9 +1053,8 @@ p_load(tigris, dplyr, leaflet)
  nrow(facts_1_to_3)  # should be 28
  print(facts_1_to_3)
  
- # ------------------------------------------------------------
  # FACT 4: % Public Insurance and % Uninsured (separate) — 2024
- # ------------------------------------------------------------
+
  public_insurance <- AAPCHOMembers20212025 %>%
    group_by(`GrantNumber`, ReportingYear) %>%
    summarise(
@@ -1044,9 +1085,9 @@ p_load(tigris, dplyr, leaflet)
  
  nrow(facts_1_to_4)  # should still be 28
  print(facts_1_to_4)
- # ------------------------------------------------------------
+
  # FACT 5: % of patients at 100%+ FPL — 2024
- # ------------------------------------------------------------
+
  fpl_over_100 <- AAPCHOMembers20212025 %>%
    group_by(`GrantNumber`, ReportingYear) %>%
    summarise(
@@ -1071,9 +1112,9 @@ p_load(tigris, dplyr, leaflet)
   group_by(ReportingYear) %>%
   summarise(sum(T3b_L12_Ca, na.rm = TRUE))
  
- # ------------------------------------------------------------
+
  # FACT 6: % served in a language other than English — 2024
- # ------------------------------------------------------------
+
  LOE <- AAPCHOMembers20212025 %>%
    group_by(`GrantNumber`, ReportingYear) %>%
    summarise(
@@ -1093,10 +1134,10 @@ p_load(tigris, dplyr, leaflet)
  
  nrow(facts_1_to_6)  # should still be 28
  print(facts_1_to_6)
- # ------------------------------------------------------------
+
  # FACT 7: Change in clinical quality measures, 2021 -> 2024
  # Hypertension Control + Diabetes Controlled (inverse of uncontrolled)
- # ------------------------------------------------------------
+
  
  # Hypertension control ratio, per org per year
  hypertension_ratio <- AAPCHOMembers20212025 %>%
@@ -1117,18 +1158,18 @@ p_load(tigris, dplyr, leaflet)
    ) %>%
    mutate(diabetes_controlled_ratio = 1 - diabetes_uncontrolled_ratio)
  
- # ------------------------------------------------------------
+ 
  # Combine both measures into one average quality score, per org per year
- # ------------------------------------------------------------
+
  quality_combined <- hypertension_ratio %>%
    inner_join(diabetes_controlled_ratio, by = c("GrantNumber", "ReportingYear")) %>%
    mutate(
      quality_score = (hypertension_ratio + diabetes_controlled_ratio) / 2
    )
  
- # ------------------------------------------------------------
+
  # Calculate 2021 -> 2024 change
- # ------------------------------------------------------------
+
  quality_change <- quality_combined %>%
    filter(ReportingYear %in% c(2021, 2024)) %>%
    select(GrantNumber, ReportingYear, quality_score) %>%
@@ -1146,9 +1187,9 @@ p_load(tigris, dplyr, leaflet)
  nrow(facts_1_to_7)  # should still be 28
  print(facts_1_to_7)
  
- # ------------------------------------------------------------
+
  # FACT 8: Cost per patient — 2024
- # ------------------------------------------------------------
+
  total_cost <- AAPCHOMembers20212025 %>%
    group_by(GrantNumber, ReportingYear) %>%
    summarise(
@@ -1172,9 +1213,9 @@ p_load(tigris, dplyr, leaflet)
  nrow(facts_1_to_8)  # should still be 28
  print(facts_1_to_8)
  
- # ------------------------------------------------------------
+
  # FACT 9: FTE count (incl. pre/post-grad) — 2024
- # ------------------------------------------------------------
+
  fte_total <- AAPCHOMembers20212025 %>%
    filter(ReportingYear == 2024) %>%
    group_by(GrantNumber) %>%
@@ -1191,8 +1232,11 @@ p_load(tigris, dplyr, leaflet)
  print(facts_1_to_9)
  
  
+ ##NEXT##
+ #Need to likely use GeoCareNav to get coordinates of each Member HC using tidygeocoder
  
-# DATA VIZ ----------------------------------------------------------------
+ 
+# DATA VIZ - OLD ----------------------------------------------------------------
 ##Patient Counts
 
 # #total AANHPI AAPCHO Members
@@ -1267,11 +1311,5 @@ p_load(tigris, dplyr, leaflet)
 #   scale_y_continuous(limits = c(24, 50)) ,  
 #   coord_map(projection = "albers", lat0 = 39, lat1 = 45)
 
-#AAPCHO Members - AANHPI Considerations 
 
-#AAPCHO Members - Cost/Finance and Clinical Quality Outcomes 
-
-#AAPCHO Members - Workforce
-
-#AAPCHO Members - HIT
 
