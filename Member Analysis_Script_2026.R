@@ -34,8 +34,7 @@ load_year <- function(file) {
   
   hci <- read_excel(file, sheet = "HealthCenterInfo") |>
     select(GrantNumber, ReportingYear, HealthCenterName, HealthCenterCity,
-           HealthCenterState, HealthCenterZIPCode, FundingCHC, FundingMHC,
-           FundingHO, FundingPH, UrbanRuralFlag) |>
+           HealthCenterState, HealthCenterZIPCode, UrbanRuralFlag) |>
     filter(GrantNumber %in% AAPCHOMembers)
   
   tables <- list(
@@ -49,6 +48,7 @@ load_year <- function(file) {
     read_aapcho(file, "Table7_1"),
     read_aapcho(file, "Table7_2"),
     read_aapcho(file, "Table8A"),
+    read_aapcho(file, "Table9D"),
     read_aapcho(file, "Table9E"),
     read_aapcho(file, "HITInformation"),
     read_aapcho(file, "OtherDataElements"),
@@ -74,16 +74,48 @@ year_files <- list(
   here("H802021.xlsx"),
   here("H802022.xlsx"),
   here("H802023.xlsx"),
-  here("H802024.xlsx")
+  here("H802024.xlsx"),
+  here("H802025.xlsx")
 )
 
 all_years <- map(year_files, load_year)
 AAPCHOMembers20212025 <- bind_rows(all_years)
+
 #Results File -- need to recommit to Git 
 pacman::p_load(here, rio)
 ResultsFile <- import(here("Results.xlsx"))
 # Data Cleaning/Checks ---------------------------------------------------------
+##Discovered differences in capitalization from 2021-2025
+all_names <- names(AAPCHOMembers20212025)
+
+# Find names that become duplicates when uppercased
+dupes <- all_names[duplicated(toupper(all_names)) | duplicated(toupper(all_names), fromLast = TRUE)]
+dupes <- sort(dupes)
+print(dupes)
+
+library(stringr)
+
+# Get uppercase version of every name, find which ones have a case-duplicate
+name_map <- tibble(original = all_names, upper = toupper(all_names)) %>%
+  group_by(upper) %>%
+  filter(n() == 2) %>%   # only pairs with exactly 2 case variants
+  ungroup()
+
+# For each duplicated uppercase name, coalesce the two original columns into one
+for (col_upper in unique(name_map$upper)) {
+  pair <- name_map %>% filter(upper == col_upper) %>% pull(original)
+  AAPCHOMembers20212025[[col_upper]] <- coalesce(
+    AAPCHOMembers20212025[[pair[1]]],
+    AAPCHOMembers20212025[[pair[2]]]
+  )
+}
+
+# Drop the original case-variant columns, keep only the new coalesced uppercase ones
+AAPCHOMembers20212025 <- AAPCHOMembers20212025 %>%
+  select(-all_of(name_map$original))
+
 ##Reporting years
+
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   skimr::skim(GrantNumber)
@@ -782,23 +814,24 @@ AAPCHOMembers20212025 %>%
 ##Total Medicaid - Amt Collected T9D_L3_Cb
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
-  summarise(sum(T9D_L3_Cb, na.rm = TRUE))
+  summarise(sum(T9D_L3_CB, na.rm = TRUE))
+
 ##Total Medicare - Amt Collected T9D_L6_Cb
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
-  summarise(sum(T9D_L6_Cb, na.rm = TRUE))
+  summarise(sum(T9D_L6_CB, na.rm = TRUE))
 ##Total Other Public - Amt Collected T9D_L9_Cb
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
-  summarise(sum(T9D_L9_Cb, na.rm = TRUE))
+  summarise(sum(T9D_L9_CB, na.rm = TRUE))
 ##Total Private - Amt Collected T9D_L12_Cb
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
-  summarise(sum(T9D_L12_Cb, na.rm = TRUE))
+  summarise(sum(T9D_L12_CB, na.rm = TRUE))
 ##Total Self-Pay - Amt Collected T9D_L13_Cb
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
-  summarise(sum(T9D_L13_Cb, na.rm = TRUE))
+  summarise(sum(T9D_L13_CB, na.rm = TRUE))
 
 # Table 9E ----------------------------------------------------------------
 ##Total 9E Revenue T9E_L11_Ca
