@@ -142,6 +142,31 @@ AAPCHOMembers20212025 %>%
 # General  ----------------------------------------------------------------
 ##Statesterritories, urban/rural, patient count groupings, 
 ###States organized most to least
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+members_by_state <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  distinct(GrantNumber, HealthCenterState) %>%
+  count(HealthCenterState, name = "member_count") %>%
+  arrange(desc(member_count))
+
+ggplot(members_by_state, aes(x = reorder(HealthCenterState, -member_count), y = member_count)) +
+  geom_col(fill = "#B25833", width = 0.6) +
+  geom_text(aes(label = member_count), vjust = -0.5, size = 3.5) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title = "AAPCHO Member Health Centers \n by State/Territory, 2025",
+    x = NULL,
+    y = "Number of Member Organizations"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    text = element_text(family = "Verdana"),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 20, hjust = 1)
+  )
 AAAPCHOMembers20212025 %>%
   tabyl(ReportingYear, HealthCenterState) %>%
   adorn_totals(where = "col") %>%        # add Total FIRST before select
@@ -721,7 +746,9 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%PatientsAged6-9WithSealantsToFirstMolars`, na.rm = TRUE))
-
+#early entry prenatal
+#initiation and egagement of sud
+#childhood immuniz 
 
 # Table 7 -----------------------------------------------------------------
 ##Hypertension
@@ -1040,7 +1067,7 @@ p_load(tigris, dplyr, leaflet)
  library(dplyr)
  library(tidyr)
  
- # FACTS #1 AND 2: Patient count + growth trend (2021 -> 2024)
+ # FACTS #1 AND 2: Patient count + growth trend (2021 -> 2025)
 
  patient_counts <- AAPCHOMembers20212025 %>%
    group_by(`GrantNumber`, ReportingYear) %>%
@@ -1050,22 +1077,22 @@ p_load(tigris, dplyr, leaflet)
    )
  
  patient_trend <- patient_counts %>%
-   filter(ReportingYear %in% c(2021, 2024)) %>%
+   filter(ReportingYear %in% c(2021, 2025)) %>%
    pivot_wider(names_from = ReportingYear, values_from = patient_count, names_prefix = "patients_") %>%
    mutate(
-     growth_pct = round((patients_2024 - patients_2021) / patients_2021 * 100, 1),
+     growth_pct = round((patients_2025 - patients_2021) / patients_2021 * 100, 1),
      patient_growth_trend = paste0(ifelse(growth_pct >= 0, "+", ""), growth_pct, "% since 2021")
    )
  
- # Keep just the current patient count (2024) + the trend label
+ # Keep just the current patient count (2025) + the trend label
  fact_1_2 <- patient_trend %>%
-   select(`GrantNumber`, patient_count_display = patients_2024, patient_growth_trend)
+   select(`GrantNumber`, patient_count_display = patients_2025, patient_growth_trend)
  
  # FACT #3 
  # Racial/ethnic minority patient count (2024)
  
  minority_patients <- AAPCHOMembers20212025 %>%
-   filter(ReportingYear == 2024) %>%
+   filter(ReportingYear == 2025) %>%
    group_by(`GrantNumber`) %>%
    summarise(
      minority_patient_count = sum(
@@ -1086,7 +1113,7 @@ p_load(tigris, dplyr, leaflet)
  nrow(facts_1_to_3)  # should be 28
  print(facts_1_to_3)
  
- # FACT 4: % Public Insurance and % Uninsured (separate) — 2024
+ # FACT 4: % Public Insurance and % Uninsured (separate) — 2025
 
  public_insurance <- AAPCHOMembers20212025 %>%
    group_by(`GrantNumber`, ReportingYear) %>%
@@ -1105,7 +1132,7 @@ p_load(tigris, dplyr, leaflet)
  insurance_status <- public_insurance %>%
    inner_join(uninsured, by = c("GrantNumber", "ReportingYear")) %>%
    inner_join(patient_counts, by = c("GrantNumber", "ReportingYear")) %>%
-   filter(ReportingYear == 2024) %>%
+   filter(ReportingYear == 2025) %>%
    mutate(
      pct_public_insurance = round(public_insurance_total / patient_count * 100, 1),
      pct_uninsured = round(uninsured_total / patient_count * 100, 1)
@@ -1119,24 +1146,24 @@ p_load(tigris, dplyr, leaflet)
  nrow(facts_1_to_4)  # should still be 28
  print(facts_1_to_4)
 
- # FACT 5: % of patients at 100%+ FPL — 2024
+ # FACT 5: % of patients at or below 100% FPL — 2024
 
- fpl_over_100 <- AAPCHOMembers20212025 %>%
+ fpl_atbelow_100 <- AAPCHOMembers20212025 %>%
    group_by(`GrantNumber`, ReportingYear) %>%
    summarise(
-     fpl_over_100_total = sum(rowSums(across(c(T4_L2_Ca, T4_L3_Ca, T4_L4_Ca)), na.rm = TRUE)),
+     fpl_atbelow_100_total = sum(T4_L1_Ca,na.rm = TRUE),
      .groups = "drop"
    )
  
- pct_fpl_over_100 <- fpl_over_100 %>%
+ pct_fpl_atover_100 <- fpl_atbelow_100 %>%
    inner_join(patient_counts, by = c("GrantNumber", "ReportingYear")) %>%
-   filter(ReportingYear == 2024) %>%
-   mutate(pct_100_fpl = round(fpl_over_100_total / patient_count * 100, 1)) %>%
+   filter(ReportingYear == 2025) %>%
+   mutate(pct_100_fpl = round(fpl_atbelow_100_total / patient_count * 100, 1)) %>%
    select(`GrantNumber`, pct_100_fpl)
  
  # Join into the growing final table
  facts_1_to_5 <- facts_1_to_4 %>%
-   inner_join(pct_fpl_over_100, by = "GrantNumber")
+   inner_join(pct_fpl_atover_100, by = "GrantNumber")
  
  nrow(facts_1_to_5)  # should still be 28
  print(facts_1_to_5)
@@ -1157,7 +1184,7 @@ p_load(tigris, dplyr, leaflet)
  
  pct_LOE <- LOE %>%
    inner_join(patient_counts, by = c("GrantNumber", "ReportingYear")) %>%
-   filter(ReportingYear == 2024) %>%
+   filter(ReportingYear == 2025) %>%
    mutate(pct_LOE = round(LOE_total / patient_count * 100, 1)) %>%
    select(`GrantNumber`, pct_LOE)
  
@@ -1168,7 +1195,7 @@ p_load(tigris, dplyr, leaflet)
  nrow(facts_1_to_6)  # should still be 28
  print(facts_1_to_6)
 
- # FACT 7: Change in clinical quality measures, 2021 -> 2024
+ # FACT 7: Change in clinical quality measures, 2021 -> 2025
  # Hypertension Control + Diabetes Controlled (inverse of uncontrolled)
 
  
@@ -1232,7 +1259,7 @@ p_load(tigris, dplyr, leaflet)
  
  cost_per_patient <- total_cost %>%
    inner_join(patient_counts, by = c("GrantNumber", "ReportingYear")) %>%
-   filter(ReportingYear == 2024) %>%
+   filter(ReportingYear == 2025) %>%
    mutate(
      cost_per_patient_raw = total_cost / patient_count,
      cost_per_patient = paste0("$", format(round(cost_per_patient_raw, 0), big.mark = ","))

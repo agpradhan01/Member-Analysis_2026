@@ -1,7 +1,13 @@
 ##Analysis notes
 #Suppression applied to Table 5 (all years), Table 8A (2021-2023), Table 9D
-
-
+#For AAPCHO Members (28) as of 2026, performed checks of health centers dropped and added 2021-2025
+##0 **in this subset (duh)** dropped since 2021. Other Members have dropped, but analysis is based off of list of Members updated to 2026
+##0 added since 2021** even though 6 CHCs were added to AAPCHO Membership, they were already FQHCs. For this analysis, will consider them "AAPCHO Members", even if they were not Members in 2021; rationale: they were still serving large population of AANHPIs. 
+#For National, performed same checks (drop/add 2021-2025)
+## 21 dropped since 2021
+## 4 added since 2021
+##NEED TO CHECK FOR 2021-2025 PCT CHANGES AND COUNTS, DID REMOVE HCS ADDED OR DROPPED FROM ANALYSES?
+# Read files --------------------------------------------------------------
 read_UDS <- function(file, sheet, col_select = NULL, filter_ids = NULL) {
   df <- read_excel(file, sheet = sheet)
   
@@ -12,7 +18,7 @@ read_UDS <- function(file, sheet, col_select = NULL, filter_ids = NULL) {
   }
   
   df <- df[keep] %>%
-    filter(grepl("^H80", GrantNumber))    # <-- this is the line, right here
+    filter(grepl("^H80", GrantNumber))   
   
   if (!is.null(filter_ids)) {
     df <- df %>% filter(GrantNumber %in% filter_ids)
@@ -20,9 +26,6 @@ read_UDS <- function(file, sheet, col_select = NULL, filter_ids = NULL) {
   
   df
 }
-
-
-
 
 load_year <- function(file, filter_ids = NULL) {
   
@@ -73,9 +76,6 @@ load_year <- function(file, filter_ids = NULL) {
   merged
 }
 
-
-
-
 year_files <- list(
   here("H802021.xlsx"),
   here("H802022.xlsx"),
@@ -84,29 +84,27 @@ year_files <- list(
   here("H802025.xlsx")
 )
 
-
-
-
 National20212025 <- map(year_files, ~load_year(.x, filter_ids = NULL)) %>%
   bind_rows()
 
-# ---- Case-cleaning: coalesce mismatched-case columns (Table 6B, 8A, 9D) ----
+ ----
 all_names <- names(National20212025)
 
-# Find names that become duplicates when uppercased
+# Cleaning: mismatched-case columns over years (Table 6B, 8A, 9D) ---------
+##Duplicates when uppercase
 dupes <- all_names[duplicated(toupper(all_names)) | duplicated(toupper(all_names), fromLast = TRUE)]
 dupes <- sort(dupes)
 print(dupes)
 
 library(stringr)
 
-# Get uppercase version of every name, find which ones have a case-duplicate
+#Uppercase version of every name, find case-duplicates
 name_map <- tibble(original = all_names, upper = toupper(all_names)) %>%
   group_by(upper) %>%
-  filter(n() == 2) %>%   # only pairs with exactly 2 case variants
+  filter(n() == 2) %>%  
   ungroup()
 
-# For each duplicated uppercase name, coalesce the two original columns into one
+##Coalesce duplicated uppercase name; two original columns into one
 for (col_upper in unique(name_map$upper)) {
   pair <- name_map %>% filter(upper == col_upper) %>% pull(original)
   National20212025[[col_upper]] <- coalesce(
@@ -115,12 +113,18 @@ for (col_upper in unique(name_map$upper)) {
   )
 }
 
-# Drop the original case-variant columns, keep only the new coalesced uppercase ones
+##Keep only the new coalesced uppercase columns, drop rest
 National20212025 <- National20212025 %>%
   select(-all_of(name_map$original))
 
-# Verify no case-duplicates remain
+##Verify no case duplicates
 names(National20212025) %>% toupper() %>% duplicated() %>% sum()  # should be 0
+
+##Confirm no cartesian product from merge
+National20212025 %>%
+  count(GrantNumber, ReportingYear) %>%
+  filter(n > 1)
+# Subset AAPCHO Members ---------------------------------------------------
 
 
 AAPCHOMembers <- c("H80CS02327", "H80CS29016", "H80CS26615", "H80CS00773",
@@ -134,10 +138,11 @@ AAPCHOMembers <- c("H80CS02327", "H80CS29016", "H80CS26615", "H80CS00773",
 AAPCHOMembers20212025 <- National20212025%>%
   filter(GrantNumber %in% AAPCHOMembers)
 
-##Checks
-#should be: up to 1,360 orgs × 5 years
+
+# Checks - AAPCHO subset --------------------------------------------------
+##Should be: up to 1,360 orgs × 5 years
 nrow(National20212025)
-#should be close to 1,360 (or fewer, if some HCs did report every year)
+##should be close to 1,360 (or fewer, if some HCs did report every year)
 n_distinct(National20212025$GrantNumber)  
 ##was 1373 
 #investigating which additional 3 health centers added
@@ -146,9 +151,14 @@ orgs_2021 <- National20212025%>%
   pull(GrantNumber) %>%
   unique()
 
+
+
+
+
+# Checking dropped orgs National ------------------------------------------
 all_orgs <- unique(National20212025$GrantNumber)
 
-#HCs that appear in the full dataset but NOT in 2021
+##HCs that appear in the full dataset but NOT in 2021
 setdiff(all_orgs, orgs_2021)
 ##"H80CS45850" "H80CS49339" "H80CS47461" "H80CS54598"
 
@@ -159,29 +169,38 @@ National20212025%>%
   select(GrantNumber, ReportingYear, HealthCenterName) %>%
   arrange(GrantNumber, ReportingYear)
 
-#Table showing which health centers dropped
-# Get distinct GrantNumbers per year
+##Table showing which health centers dropped
+###Distinct GrantNumbers per year
 orgs_by_year <- National20212025 %>%
   distinct(GrantNumber, ReportingYear) %>%
   split(.$ReportingYear) %>%
   lapply(function(df) df$GrantNumber)
 
-# Organizations present in 2021 but gone by 2022
+
+##HCs in 2021 but dropped by 2022
 dropped_2021_to_2022 <- setdiff(orgs_by_year[["2021"]], orgs_by_year[["2022"]])
-
-# Organizations present in 2022 but gone by 2023
+print(dropped_2021_to_2022)
+##HCs added in 2022
+added_2022 <- setdiff(orgs_by_year[["2022"]], orgs_by_year[["2021"]])
+print(added_2022)
+##HCs in 2022 but dropped by 2023
 dropped_2022_to_2023 <- setdiff(orgs_by_year[["2022"]], orgs_by_year[["2023"]])
-
-# Organizations present in 2023 but gone by 2024
+added_2023 <- setdiff(orgs_by_year[["2023"]], orgs_by_year[["2022"]])
+##HCs in 2023 but dropped by 2024
 dropped_2023_to_2024 <- setdiff(orgs_by_year[["2023"]], orgs_by_year[["2024"]])
-
+added_2024 <- setdiff(orgs_by_year[["2024"]], orgs_by_year[["2023"]])
+##HCs in 2024 but dropped by 2025
 dropped_2024_to_2025 <- setdiff(orgs_by_year[["2024"]], orgs_by_year[["2025"]])
-
-# See counts at a glance
+added_2025 <- setdiff(orgs_by_year[["2025"]], orgs_by_year[["2024"]])
+##Counts
 length(dropped_2021_to_2022)
+length(added_2022)
 length(dropped_2022_to_2023)
+length(added_2023)
 length(dropped_2023_to_2024)
+length(added_2024)
 length(dropped_2024_to_2025)
+length(added_2025)
 dropped_all <- bind_rows(
   National20212025 %>%
     filter(GrantNumber %in% dropped_2021_to_2022, ReportingYear == 2021) %>%
@@ -201,16 +220,195 @@ dropped_all <- bind_rows(
 dropped_all
 print(dropped_all, n = 25)
 
+added_all <- bind_rows(
+  National20212025 %>%
+    filter(GrantNumber %in% added_2022, ReportingYear == 2022) %>%
+    mutate(added_in = "2022"),
+  National20212025 %>%
+    filter(GrantNumber %in% added_2023, ReportingYear == 2023) %>%
+    mutate(added_in = "2023"),
+  National20212025 %>%
+    filter(GrantNumber %in% added_2024, ReportingYear == 2024) %>%
+    mutate(added_in = "2024"),
+  National20212025 %>%
+    filter(GrantNumber %in% added_2025, ReportingYear == 2025) %>%
+    mutate(added_in = "2025")
+) %>%
+  select(GrantNumber, HealthCenterName, HealthCenterCity, HealthCenterState, added_in)
+
+added_all
+print(added_all, n = 25)
 
 
-#Confirm no cartesian product from merge
-National20212025 %>%
-  count(GrantNumber, ReportingYear) %>%
-  filter(n > 1)
 
 
-# OCONUS - minus PR ------------------------------------------------------------------
-OCONUSIslands2025 <- c("VI", "PW", "HI", "FM", "GU", "MH", "AS", "MP")
+#Checking dropped AAPCHO Orgs ------------------------------------
+AAPCHOorgs_by_year <- AAPCHOMembers20212025 %>%
+  distinct(GrantNumber, ReportingYear) %>%
+  split(.$ReportingYear) %>%
+  lapply(function(df) df$GrantNumber)
+print(AAPCHOorgs_by_year)
+
+##HCs in 2021 but dropped by 2022
+AAPCHOdropped_2021_to_2022 <- setdiff(AAPCHOorgs_by_year[["2021"]], AAPCHOorgs_by_year[["2022"]])
+print(AAPCHOdropped_2021_to_2022)
+##HCs added in 2022
+AAPCHOadded_2022 <- setdiff(AAPCHOorgs_by_year[["2022"]], AAPCHOorgs_by_year[["2021"]])
+print(AAPCHOadded_2022)
+##HCs in 2022 but dropped by 2023
+AAPCHOdropped_2022_to_2023 <- setdiff(AAPCHOorgs_by_year[["2022"]], AAPCHOorgs_by_year[["2023"]])
+AAPCHOadded_2023 <- setdiff(AAPCHOorgs_by_year[["2023"]], AAPCHOorgs_by_year[["2022"]])
+##HCs in 2023 but dropped by 2024
+AAPCHOdropped_2023_to_2024 <- setdiff(AAPCHOorgs_by_year[["2023"]], AAPCHOorgs_by_year[["2024"]])
+AAPCHOadded_2024 <- setdiff(AAPCHOorgs_by_year[["2024"]], AAPCHOorgs_by_year[["2023"]])
+##HCs in 2024 but dropped by 2025
+AAPCHOdropped_2024_to_2025 <- setdiff(AAPCHOorgs_by_year[["2024"]], AAPCHOorgs_by_year[["2025"]])
+AAPCHOadded_2025 <- setdiff(AAPCHOorgs_by_year[["2025"]], AAPCHOorgs_by_year[["2024"]])
+##Counts
+length(AAPCHOdropped_2021_to_2022)
+length(AAPCHOadded_2022)
+length(AAPCHOdropped_2022_to_2023)
+length(AAPCHOadded_2023)
+length(AAPCHOdropped_2023_to_2024)
+length(AAPCHOadded_2024)
+length(AAPCHOdropped_2024_to_2025)
+length(AAPCHOadded_2025)
+AAPCHOdropped_all <- bind_rows(
+  AAPCHOMembers20212025 %>%
+    filter(GrantNumber %in% AAPCHOdropped_2021_to_2022, ReportingYear == 2021) %>%
+    mutate(AAPCHOdropped_after = "2021"),
+  AAPCHOMembers20212025 %>%
+    filter(GrantNumber %in% AAPCHOdropped_2022_to_2023, ReportingYear == 2022) %>%
+    mutate(AAPCHOdropped_after = "2022"),
+  AAPCHOMembers20212025 %>%
+    filter(GrantNumber %in% AAPCHOdropped_2023_to_2024, ReportingYear == 2023) %>%
+    mutate(AAPCHOdropped_after = "2023"),
+  AAPCHOMembers20212025 %>%
+    filter(GrantNumber %in% AAPCHOdropped_2024_to_2025, ReportingYear == 2024) %>%
+    mutate(AAPCHOdropped_after = "2024")
+) %>%
+  select(GrantNumber, HealthCenterName, HealthCenterCity, HealthCenterState, AAPCHOdropped_after)
+
+AAPCHOdropped_all
+print(AAPCHOdropped_all, n = 25)
+
+AAPCHOadded_all <- bind_rows(
+  AAPCHOMembers20212025 %>%
+    filter(GrantNumber %in% AAPCHOadded_2022, ReportingYear == 2022) %>%
+    mutate(AAPCHOadded_in = "2022"),
+  AAPCHOMembers20212025 %>%
+    filter(GrantNumber %in% AAPCHOadded_2023, ReportingYear == 2023) %>%
+    mutate(AAPCHOadded_in = "2023"),
+  AAPCHOMembers20212025 %>%
+    filter(GrantNumber %in% AAPCHOadded_2024, ReportingYear == 2024) %>%
+    mutate(AAPCHOadded_in = "2024"),
+  AAPCHOMembers20212025 %>%
+    filter(GrantNumber %in% AAPCHOadded_2025, ReportingYear == 2025) %>%
+    mutate(AAPCHOadded_in = "2025")
+) %>%
+  select(GrantNumber, HealthCenterName, HealthCenterCity, HealthCenterState, AAPCHOadded_in)
+
+AAPCHOadded_all
+print(AAPCHOadded_all, n = 25)
+
+#Load fonts to match Canva design ----------------------------------------
+library(ggplot2)
+#install.packages("showtext")
+library(showtext)
+
+##Add fonts from Google Fonts
+font_add_google("Montserrat", "montserrat")
+showtext_auto()
+font_add_google("Open Sans", "open_sans")
+showtext_auto()
+
+
+# Members by State --------------------------------------------------------
+members_by_state <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  distinct(GrantNumber, HealthCenterState) %>%
+  count(HealthCenterState, name = "member_count") %>%
+  arrange(desc(member_count))
+
+ggplot(members_by_state, aes(x = reorder(HealthCenterState, -member_count), y = member_count)) +
+  geom_col(fill = "#B25833", width = 0.6) +
+  geom_text(aes(label = member_count), vjust = -0.5, fontface = "bold", size = 3.5) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  labs(
+    title = "2025 AAPCHO Member Health Centers \n by State/Territory",
+    x = "State/Territory",
+    y = "Count of Health Centers"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(
+    text = element_text(family = "open_sans"),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 20, hjust = 1)
+  )
+
+
+# Map of Members ----------------------------------------------------------
+
+library(tigris)
+library(dplyr)
+library(ggplot2)
+library(sf)
+
+options(tigris_use_cache = TRUE)
+
+states_map <- states(cb = TRUE)
+
+states_map_joined <- states_map %>%
+  left_join(members_by_state, by = c("STUSPS" = "HealthCenterState"))
+
+##Coordinates for label placement
+state_centroids <- states_map_joined %>%
+  filter(!is.na(member_count)) %>%   # only label states that actually have members
+  st_centroid() %>%
+  mutate(
+    lon = st_coordinates(.)[, 1],
+    lat = st_coordinates(.)[, 2]
+  ) %>%
+  st_drop_geometry()
+
+ggplot(states_map_joined) +
+  geom_sf(aes(fill = member_count), color = "white", linewidth = 0.2) +
+  geom_text(
+    data = state_centroids,
+    aes(x = lon, y = lat, label = member_count),
+    color = "white",
+    fontface = "bold",
+    size = 3.5
+  ) +
+  scale_fill_gradient(
+    low = "#e1c758", high = "#4d2716",
+    na.value = "#EEEEEE",
+    name = "Member\nCenters"
+  ) +
+  coord_sf(xlim = c(-125, -65), ylim = c(24, 50)) +
+  labs(
+    title = "2025 AAPCHO Member Health Centers by State/Territory"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    text = element_text(family = "Verdana"),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    panel.background = element_rect(fill = "transparent", color = NA),
+    plot.background = element_rect(fill = "transparent", color = NA),
+    legend.background = element_rect(fill = "transparent", color = NA),
+    legend.key = element_rect(fill = "transparent", color = NA)
+  )
+
+ggsave("member_map.png", bg = "transparent", width = 8, height = 6, dpi = 300)
+ #larger text
+ggsave("member_map2.png", bg = "transparent", width = 10, height = 7.5, dpi = 300)
+ggsave("member_map3.png", bg = "transparent", width = 6, height = 4.5, dpi = 300)
+
+# OCONUS - minus PR, including HI. NH folks may disagree with Hawaii grouped in...tbd ------------------------------------------------------------------
+OCONUSIslands2025 <- c("PW", "HI", "FM", "GU", "MH", "AS", "MP")
 tibble <- National20212025 %>%
   filter(HealthCenterState %in% OCONUSIslands2025) %>%
   group_by(ReportingYear) %>%
@@ -229,25 +427,26 @@ tibble <- AAPCHOMembers20212025 %>%
   )
 print(tibble, n = Inf) 
 
-OCONUSIslands2025 <- c("VI", "PW", "HI", "FM", "GU", "MH", "AS", "MP")
+OCONUSIslands2025 <- c("PW", "HI", "FM", "GU", "MH", "AS", "MP")
 
-
+##National totals by state/territory, by year
 national_tibble <- National20212025 %>%
   filter(HealthCenterState %in% OCONUSIslands2025) %>%
   group_by(HealthCenterState, ReportingYear) %>%
   summarise(
-    Total_Patients = sum(T3a_L39_Ca, T3a_L39_Cb, na.rm = TRUE),
+    Total_Patients = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)),
     .groups = "drop"
   )
-
+##AAPCHO Member totals by state/territory, by year
 member_tibble <- AAPCHOMembers20212025 %>%
   filter(HealthCenterState %in% OCONUSIslands2025) %>%
   group_by(HealthCenterState, ReportingYear) %>%
   summarise(
-    Total_Patients = sum(T3a_L39_Ca, T3a_L39_Cb, na.rm = TRUE),
+    Total_Patients = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)),
     .groups = "drop"
   )
 
+##Combine — Member vs Non-Member split of the National total
 patients_by_state <- national_tibble %>%
   rename(National_Total = Total_Patients) %>%
   left_join(
@@ -259,31 +458,43 @@ patients_by_state <- national_tibble %>%
     NonMember_Total = National_Total - Member_Total
   )
 
-#Stacked bar data: 2025 only
+
+##Labels with footnote markers (keeping separate from the raw HealthCenterState codes used for filtering/joins)
+state_labels <- c(
+  "PW" = "PW**",
+  "HI" = "HI",
+  "FM" = "FM**",
+  "GU" = "GU*",
+  "MH" = "MH**",
+  "AS" = "AS*",
+  "MP" = "MP*"
+)
+##Stacked bar data — 2025 only
 bar_data_2025 <- patients_by_state %>%
   filter(ReportingYear == "2025") %>%
   select(HealthCenterState, `AAPCHO Member` = Member_Total, `Non-Member` = NonMember_Total) %>%
-  pivot_longer(-HealthCenterState, names_to = "MemberStatus", values_to = "Patients")
+  pivot_longer(-HealthCenterState, names_to = "MemberStatus", values_to = "Patients") %>%
+  mutate(StateLabel = recode(HealthCenterState, !!!state_labels))
 
-# ---- Growth data: National total, 2021 vs 2025, per state ----
+##Growth data — National total, 2021 vs 2025, per state
 growth_data <- patients_by_state %>%
   select(HealthCenterState, ReportingYear, National_Total) %>%
   pivot_wider(names_from = ReportingYear, values_from = National_Total, names_prefix = "Y") %>%
   mutate(
     Increase = Y2025 - Y2021,
-    label = paste0("+", scales::comma(Increase))
+    label = paste0("+", scales::comma(Increase)),
+    StateLabel = recode(HealthCenterState, !!!state_labels)
   )
 
-
-ggplot(bar_data_2025, aes(x = HealthCenterState, y = Patients, fill = MemberStatus)) +
+ggplot(bar_data_2025, aes(x = StateLabel, y = Patients, fill = MemberStatus)) +
   geom_col(position = "stack") +
   geom_text(
     data = growth_data,
-    aes(x = HealthCenterState, y = Y2025, label = scales::comma(Y2025)),
+    aes(x = StateLabel, y = Y2025, label = scales::comma(Y2025)),
     inherit.aes = FALSE,
     color = "black",
     fontface = "bold",
-    size = 3.2,
+    size = 4,
     vjust = -0.8
   ) +
   scale_fill_manual(values = c(
@@ -292,21 +503,26 @@ ggplot(bar_data_2025, aes(x = HealthCenterState, y = Patients, fill = MemberStat
   )) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.15)), labels = scales::comma) +
   labs(
-    title = "Patients Served in OCONUS States/Territories, 2025",
-    x = "State/Territory",
-    y = "Total Patients",
-    fill = NULL
+    title = "2025 Health Center Patients \nServed in Pacific Islands",
+    x = "State/Territory/COFA State",
+    y = "Count of Patients",
+    fill = NULL,
+    caption = "* Territory \n ** COFA State"
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5, size = 10),
+    plot.caption = element_text(hjust = 0, size = 8, margin = margin(t = 10)),
+    plot.margin = margin(t = 10, r = 10, b = 15, l = 10),
     legend.position = "top"
   )
-OCONUSHealthCenters2025 <- c("H80CS00373",
-                             "H80CS00372",
-                             "H80CS02467",
+
+ggsave("pacific_islands_patients.png", bg = "transparent", width = 10, height = 6, dpi = 300)
+
+#did validate below in 2025 UDS which CHCs are in Pacific Islands. Had mistakenly included UDSVI, which is not in Pacific 
+PacificHealthCenters2025 <- c("H80CS02467",
                              "H80CS00807",
                              "H80CS02449",
                              "H80CS00852",
@@ -328,7 +544,7 @@ OCONUSHealthCenters2025 <- c("H80CS00373",
                              "H80CS31624",
                              "H80CS30720",
                              "H80CS35350")
-##Initially included PR
+##Initially included PR and USVI
 # OCONUSHealthCenters2025 <- c("H80CS00325",
 #                              "H80CS00598",
 #                              "H80CS00354",
@@ -375,14 +591,14 @@ OCONUSHealthCenters2025 <- c("H80CS00373",
 #                              "H80CS30720",
 #                              "H80CS35350")
 National20212025 %>%
-  filter(GrantNumber %in% OCONUSHealthCenters2025) %>%
+  filter(GrantNumber %in% PacificHealthCenters2025) %>%
   group_by(ReportingYear) %>%
   summarise(
     Total_Patients = sum(T3a_L39_Ca, T3a_L39_Cb, na.rm = TRUE),
     .groups = "drop"
   )
 AAPCHOMembers20212025 %>%
-  filter(GrantNumber %in% OCONUSHealthCenters2025) %>%
+  filter(GrantNumber %in% PacificHealthCenters2025) %>%
   group_by(ReportingYear) %>%
   summarise(
     Total_Patients = sum(T3a_L39_Ca, T3a_L39_Cb, na.rm = TRUE),
@@ -390,7 +606,6 @@ AAPCHOMembers20212025 %>%
   )
 
 # Patient Counts - 2021,2025 Bar Chart ----------------------------------------------
-
 
 #Members total patients
 AAPCHOMembers20212025 %>%
@@ -419,16 +634,7 @@ library(dplyr)
 library(ggplot2)
 library(scales)
 
-members_by_org %>%
-  summarise(
-    mean_pct_change = mean(pct_change, na.rm = TRUE),
-    median_pct_change = median(pct_change, na.rm = TRUE)
-  )
-national_by_org %>%
-  summarise(
-    mean_pct_change = mean(pct_change, na.rm = TRUE),
-    median_pct_change = median(pct_change, na.rm = TRUE)
-  )
+
 # Members — per-org % change, then average across orgs
 
 members_by_org <- AAPCHOMembers20212025 %>%
@@ -458,7 +664,7 @@ national_by_org <- National20212025 %>%
   tidyr::pivot_wider(names_from = ReportingYear, values_from = total_patients, names_prefix = "y") %>%
   mutate(pct_change = (y2025 - y2021) / y2021 * 100)
 
-##NEED TO REMOVE THESE FOUR ORGS
+##NEED TO REMOVE THESE FOUR ORGS, added since 2021
 national_by_org %>% filter(y2021 == 0 | is.na(y2021) | is.infinite(pct_change))
 # A tibble: 4 × 4
 # GrantNumber y2021 y2025 pct_change
@@ -468,6 +674,9 @@ national_by_org %>% filter(y2021 == 0 | is.na(y2021) | is.infinite(pct_change))
 # 3 H80CS49339     NA 15752         NA
 # 4 H80CS54598     NA 14384         NA
 
+# **MAYBE NEED TO REMOVE THOSE DROPPED SINCE 2021 -------------------------
+
+
 national_by_org_clean <- national_by_org %>%
   filter(!is.na(y2021), y2021 != 0, is.finite(pct_change))
 
@@ -475,7 +684,17 @@ national_avg_growth <- national_by_org_clean %>%
   summarise(median_pct_change = median(pct_change, na.rm = TRUE)) %>%
   mutate(Group = "National")
 
-
+#check to use mean vs median
+members_by_org %>%
+  summarise(
+    mean_pct_change = mean(pct_change, na.rm = TRUE),
+    median_pct_change = median(pct_change, na.rm = TRUE)
+  )
+national_by_org %>%
+  summarise(
+    mean_pct_change = mean(pct_change, na.rm = TRUE),
+    median_pct_change = median(pct_change, na.rm = TRUE)
+  )
 
 
 avg_patient_growth_combined <- bind_rows(members_avg_growth, national_avg_growth)
@@ -506,16 +725,16 @@ ggplot(combined_totals, aes(x = as.character(ReportingYear), y = total_patients,
   labs(
     title = "Total Patients Served",
     x = NULL,
-    y = "Total Patients",
+    y = "Count of Patients",
     caption = "Percent label = median rate of growth across health centers"
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     legend.position = "none",
     plot.title = element_text(face = "bold", hjust = 0.5),
     strip.text = element_text(face = "bold", size = 12),
-    plot.caption = element_text(color = "#B2334F", face = "bold", hjust = 0.5, size = 10, margin = margin(t = 10))
+    plot.caption = element_text(color = "#B2334F", hjust = 0.5, size = 10, margin = margin(t = 10))
     )
 
 
@@ -584,9 +803,9 @@ ggplot(Membervisits_2025, aes(x = reorder(Service, -Visits), y = Visits, fill = 
     x = NULL,
     y = "Visits"
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
     axis.text.x = element_text(angle = 20, hjust = 1),
    legend.position = "none"
@@ -708,8 +927,8 @@ national_enablingvisits <- National20212025 %>%
   filter(is.finite(pct_enabling)) %>%
   group_by(ReportingYear) %>%
   summarise(
-    `Enabling Services` = median(pct_enabling, na.rm = TRUE),
-    `All Other Services` = median(pct_other, na.rm = TRUE),
+    `Enabling Services` = mean(pct_enabling, na.rm = TRUE),
+    `All Other Services` = mean(pct_other, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(Group = "National")
@@ -740,14 +959,14 @@ ggplot(combinedenabling, aes(x = as.character(ReportingYear), y = pct, fill = Ca
     "All Other Services" = "#CBD5C6"
   )) +
   labs(
-    title = "Enabling Services as Percent of Total Visits, 2021 vs 2025",
+    title = "Enabling Services as Percent of Total Visits",
     x = NULL,
-    y = "Average % of Visits (per health center)",
+    y = "Average Proportion of Visits",
     fill = NULL
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
     strip.text = element_text(face = "bold", size = 12),
     legend.position = "top"
@@ -820,15 +1039,16 @@ ggplot(Memberages_2025, aes(x = factor(Age, levels = age_order), y = Patients, f
   )) +
   labs(
     title = "2025 AAPCHO Member Patients: Age",
-    subtitle = "Red text = percent change in patient count since 2021",
     x = "Age",
-    y = "Patients"
+    y = "Count of Patients",
+    caption = "Percent label = percent change in patient count since 2021"
   ) +
-  theme_minimal(base_size = 11) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
-    plot.subtitle = element_text(hjust = 0.5, color = "#B2334F", size = 9),
+    strip.text = element_text(face = "bold", size = 12),
+    plot.caption = element_text(color = "#B2334F", hjust = 0.5, size = 10, margin = margin(t = 10)),
     axis.text.x = element_text(angle = 20, hjust = 1),
     legend.position = "none"
   )
@@ -907,9 +1127,9 @@ ggplot(Nationalages_2025, aes(x = factor(Age, levels = age_order), y = Patients,
     x = "Age",
     y = "Patients"
   ) +
-  theme_minimal(base_size = 11) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5, color = "#B2334F", size = 9),
     axis.text.x = element_text(angle = 20, hjust = 1),
@@ -924,7 +1144,7 @@ MemberRace_by_year <- AAPCHOMembers20212025 %>%
   summarise(
     `Asian` = sum(T3b_L1_Cd, na.rm = TRUE),
     `Native Hawaiian` = sum(T3b_L2a_Cd, na.rm = TRUE),
-    `Pacific Islander` = sum(rowSums(across(c(T3b_L2b_Cd,T3b_L2c_Cd,T3b_L2d_Cd)), na.rm = TRUE)),
+    `Pacific Islander` = sum(rowSums(across(c(T3b_L2b_Cd,T3B_L2C_CD,T3B_L2D_CD)), na.rm = TRUE)),
     `Black/African American` = sum(T3b_L3_Cd, na.rm = TRUE),
     `American Indian/Alaska Native` = sum(T3b_L4_Cd, na.rm = TRUE),
     `White` = sum(T3b_L5_Cd, na.rm = TRUE),
@@ -973,18 +1193,20 @@ ggplot(MemberRace_2025, aes(x = `Race Group`, y = Patients, fill = `Race Group`)
   )) +
   labs(
     title = "2025 AAPCHO Member Patients: Race",
-    subtitle = "Red text = percent change in patient count since 2021",
     x = "Race Group",
-    y = "Patients"
+    y = "Count of Patients",
+    caption = "Percent label = percent change in patient count since 2021"
   ) +
-  theme_minimal(base_size = 11) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
-    plot.subtitle = element_text(hjust = 0.5, color = "#B2334F", size = 9),
+    strip.text = element_text(face = "bold", size = 12),
+    plot.caption = element_text(color = "#B2334F", hjust = 0.5, size = 10, margin = margin(t = 10)),
     axis.text.x = element_text(angle = 20, hjust = 1),
     legend.position = "none"
   )
+
 
 ##AAPCHO Members: change in patient age groups from 2021
 member_age_change_named <- member_age_change %>%
@@ -1059,14 +1281,78 @@ ggplot(NationalRace_2025, aes(x = `Race Group`, y = Patients, fill = `Race Group
     x = "Race Group",
     y = "Patients"
   ) +
-  theme_minimal(base_size = 11) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5, color = "#B2334F", size = 9),
     axis.text.x = element_text(angle = 20, hjust = 1),
     legend.position = "none"
   )
+
+# AA, NH, and PI stacked bars ---------------------------------------------
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+
+Member_totals_2025 <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(
+    Asian = sum(T3b_L1_Cd, na.rm = TRUE),
+    `Native Hawaiian` = sum(T3b_L2a_Cd, na.rm = TRUE),
+    `Pacific Islander` = sum(rowSums(across(c(T3b_L2b_Cd, T3B_L2C_CD, T3B_L2D_CD)), na.rm = TRUE))
+  ) %>%
+  pivot_longer(everything(), names_to = "RaceGroup", values_to = "Member_Patients")
+
+National_totals_2025 <- National20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(
+    Asian = sum(T3b_L1_Cd, na.rm = TRUE),
+    `Native Hawaiian` = sum(T3b_L2a_Cd, na.rm = TRUE),
+    `Pacific Islander` = sum(rowSums(across(c(T3b_L2b_Cd, T3B_L2C_CD, T3B_L2D_CD)), na.rm = TRUE))
+  ) %>%
+  pivot_longer(everything(), names_to = "RaceGroup", values_to = "National_Patients")
+
+
+race_2025 <- National_totals_2025 %>%
+  left_join(Member_totals_2025, by = "RaceGroup") %>%
+  mutate(
+    Member_Patients = coalesce(Member_Patients, 0),
+    NonMember_Patients = National_Patients - Member_Patients,
+    Member_Pct = Member_Patients/National_Patients * 100,
+    NonMember_Pct = NonMember_Patients/National_Patients *100
+  ) %>%
+  select(RaceGroup, `AAPCHO Members` = Member_Pct, `Non-Member` = NonMember_Pct) %>%
+  pivot_longer(-RaceGroup, names_to = "MemberStatus", values_to = "Pct")
+
+ggplot(race_2025, aes(x = RaceGroup, y = Pct, fill = MemberStatus)) +
+  geom_col(width = 0.4) +
+  geom_text(
+    aes(label = paste0(round(Pct, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    color = "white",
+    fontface = "bold",
+    size = 3.5
+  ) +
+  scale_y_continuous(labels = function(x) paste0(x, "%"), expand = expansion(mult = c(0, 0.05))) +
+  scale_fill_manual(values = c(
+    "AAPCHO Members" = "#3C6E8A",
+    "Non-Member" = "#CBD5C6"
+  )) +
+  labs(
+    title = "2025 Share of AA, NH, and PI Race \nGroups Served by AAPCHO Members",
+    x = NULL,
+    y = "Proportion of Total Patients in Race Group",
+    fill = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    text = element_text(family = "Verdana"),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = "top"
+  )
+# Disaggregated AANHPI ----------------------------------------------------
 
 ##AANHPI Disaggregated by State 
 #Total Asian by state
@@ -1105,17 +1391,17 @@ NationalAANHPI_by_year <- National20212025 %>%
   filter(ReportingYear %in% c(2021, 2025)) %>%
   group_by(ReportingYear) %>%
   summarise(
-    `Asian Indian` = sum(T3b_L1a_Cd, na.rm = TRUE),
-    `Chinese` = sum(T3b_L1b_Cd, na.rm = TRUE),
-    `Filipino` = sum(T3b_L1c_Cd, na.rm = TRUE),
-    `Japanese` = sum(T3b_L1d_Cd, na.rm = TRUE),
-    `Korean` = sum(T3b_L1e_Cd, na.rm = TRUE),
-    `Vietnamese` = sum(T3b_L1f_Cd, na.rm = TRUE),
-    `Other Asian` = sum(T3b_L1g_Cd, na.rm = TRUE),
+    `Asian Indian` = sum(T3B_L1A_CD, na.rm = TRUE),
+    `Chinese` = sum(T3B_L1B_CD, na.rm = TRUE),
+    `Filipino` = sum(T3B_L1C_CD, na.rm = TRUE),
+    `Japanese` = sum(T3B_L1D_CD, na.rm = TRUE),
+    `Korean` = sum(T3B_L1E_CD, na.rm = TRUE),
+    `Vietnamese` = sum(T3B_L1F_CD, na.rm = TRUE),
+    `Other Asian` = sum(T3B_L1G_CD, na.rm = TRUE),
     `Native Hawaiian` = sum(T3b_L2a_Cd, na.rm = TRUE),
     `Other Pacific Islander` = sum(T3b_L2b_Cd, na.rm = TRUE),
-    `Guamanian or Chamorro` = sum(T3b_L2c_Cd, na.rm = TRUE),
-    `Samoan` = sum(T3b_L2d_Cd, na.rm = TRUE),
+    `Guamanian or Chamorro` = sum(T3B_L2C_CD, na.rm = TRUE),
+    `Samoan` = sum(T3B_L2D_CD, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   pivot_longer(-ReportingYear, names_to = "Disaggregated Race Group", values_to = "Patients")
@@ -1171,9 +1457,9 @@ ggplot(NationalAANHPI_2025, aes(factor(x = `Disaggregated Race Group`, levels = 
     x = "Disaggregated Race Group",
     y = "Patients"
   ) +
-  theme_minimal(base_size = 11) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5, color = "#B2334F", size = 9),
     axis.text.x = element_text(angle = 20, hjust = 1),
@@ -1184,17 +1470,17 @@ AAPCHOMembersAANHPI_by_year <- AAPCHOMembers20212025 %>%
   filter(ReportingYear %in% c(2021, 2025)) %>%
   group_by(ReportingYear) %>%
   summarise(
-    `Asian Indian` = sum(T3b_L1a_Cd, na.rm = TRUE),
-    `Chinese` = sum(T3b_L1b_Cd, na.rm = TRUE),
-    `Filipino` = sum(T3b_L1c_Cd, na.rm = TRUE),
-    `Japanese` = sum(T3b_L1d_Cd, na.rm = TRUE),
-    `Korean` = sum(T3b_L1e_Cd, na.rm = TRUE),
-    `Vietnamese` = sum(T3b_L1f_Cd, na.rm = TRUE),
-    `Other Asian` = sum(T3b_L1g_Cd, na.rm = TRUE),
+    `Asian Indian` = sum(T3B_L1A_CD, na.rm = TRUE),
+    `Chinese` = sum(T3B_L1B_CD, na.rm = TRUE),
+    `Filipino` = sum(T3B_L1C_CD, na.rm = TRUE),
+    `Japanese` = sum(T3B_L1D_CD, na.rm = TRUE),
+    `Korean` = sum(T3B_L1E_CD, na.rm = TRUE),
+    `Vietnamese` = sum(T3B_L1F_CD, na.rm = TRUE),
+    `Other Asian` = sum(T3B_L1G_CD, na.rm = TRUE),
     `Native Hawaiian` = sum(T3b_L2a_Cd, na.rm = TRUE),
     `Other Pacific Islander` = sum(T3b_L2b_Cd, na.rm = TRUE),
-    `Guamanian or Chamorro` = sum(T3b_L2c_Cd, na.rm = TRUE),
-    `Samoan` = sum(T3b_L2d_Cd, na.rm = TRUE),
+    `Guamanian or Chamorro` = sum(T3B_L2C_CD, na.rm = TRUE),
+    `Samoan` = sum(T3B_L2D_CD, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   pivot_longer(-ReportingYear, names_to = "Disaggregated Race Group", values_to = "Patients")
@@ -1229,7 +1515,7 @@ AANHPIorder <- c("Asian Indian",
 
 ggplot(AAPCHOMembersAANHPI_2025, aes(factor(x = `Disaggregated Race Group`, levels = AANHPIorder),  y = Patients, fill = `Disaggregated Race Group`)) +
   geom_col(width = 0.3) +
-  geom_text(aes(label = comma(Patients)), vjust = -0.5, size = 3.0) +
+  geom_text(aes(label = comma(Patients)), vjust = -0.5, size = 3.0, fontface = "bold") +
   scale_x_discrete(labels = scales::label_wrap(10)) +
   scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.30))) +
   scale_fill_manual(values = c(
@@ -1250,9 +1536,9 @@ ggplot(AAPCHOMembersAANHPI_2025, aes(factor(x = `Disaggregated Race Group`, leve
     x = "Disaggregated Race Group",
     y = "Patients"
   ) +
-  theme_minimal(base_size = 11) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
     plot.subtitle = element_text(hjust = 0.5, color = "#B2334F", size = 9),
     axis.text.x = element_text(angle = 20, hjust = 1),
@@ -1316,18 +1602,18 @@ ggplot(combined_LOE_totals, aes(x = as.character(ReportingYear), y = LOE_patient
   scale_y_continuous(labels = comma, expand = expansion(mult = c(0, 0.2))) +
   scale_fill_manual(values = c("2021" = "#D6C673", "2025" = "#546885")) +
   labs(
-    title = "Total Patients Best Served \nin a Language Other than English",
+    title = "Patients Best Served \nin a Language Other than English",
     x = NULL,
-    y = "Total Patients",
+    y = "Count of Patients",
     caption = "Percent label = median rate of growth across individual health centers"
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     legend.position = "none",
     plot.title = element_text(face = "bold", hjust = 0.5),
     strip.text = element_text(face = "bold", size = 12),
-    plot.caption = element_text(color = "#B2334F", face = "bold", hjust = 0.5, size = 10, margin = margin(t = 10))
+    plot.caption = element_text(color = "#B2334F", hjust = 0.5, size = 10, margin = margin(t = 10))
   )
 #excluded 
 National20212025 %>%
@@ -1597,14 +1883,14 @@ ggplot(combinedFPL, aes(x = as.character(ReportingYear), y = Pct, fill = `Percen
     "Unknown FPL" = "#D9D9D9"
   )) +
   labs(
-    title = "Patients - Percent Federal Poverty Level (FPL), \n2021 vs 2025",
+    title = "Patients - Percent Federal Poverty Level (FPL)",
     x = "Reporting Year",
-    y = "% of Patients",
+    y = "Proportion of Patients",
     fill = NULL
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
     strip.text = element_text(face = "bold", size = 12),
     legend.position = "top"
@@ -1650,7 +1936,7 @@ AAPCHOMembers20212025 %>%
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
-    total = sum(rowSums(across(c(T4_L10a_Other,
+    total = sum(rowSums(across(c(T4_L10A_OTHER,
                                  T4_L10a_Ca,
                                  T4_L10a_Cb,
                                  T4_L10b_Ca,
@@ -1671,9 +1957,9 @@ insurance_members <- AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
     Uninsured   = sum(rowSums(across(c(T4_L7_Ca, T4_L7_Cb)), na.rm = TRUE)),
-    Medicaid    = sum(rowSums(across(c(T4_L8_Ca, T4_L8_Cb)), na.rm = TRUE)),
-    Medicare    = sum(rowSums(across(c(T4_L9_Ca, T4_L9_Cb)), na.rm = TRUE)),
-    'Other Public' = sum(rowSums(across(c(T4_L10a_Other, T4_L10a_Ca, T4_L10a_Cb,
+    'Medicaid (incl. CHIP)'    = sum(rowSums(across(c(T4_L8_Ca, T4_L8_Cb)), na.rm = TRUE)),
+    'Medicare*'    = sum(rowSums(across(c(T4_L9_Ca, T4_L9_Cb)), na.rm = TRUE)),
+    'Other Public**' = sum(rowSums(across(c(T4_L10A_OTHER, T4_L10a_Ca, T4_L10a_Cb,
                                        T4_L10b_Ca, T4_L10b_Cb)), na.rm = TRUE)),
     Private     = sum(rowSums(across(c(T4_L11_Ca, T4_L11_Cb)), na.rm = TRUE)),
     .groups = "drop"
@@ -1685,9 +1971,9 @@ insurance_national <- National20212025 %>%
   group_by(ReportingYear) %>%
   summarise(
     Uninsured   = sum(rowSums(across(c(T4_L7_Ca, T4_L7_Cb)), na.rm = TRUE)),
-    Medicaid    = sum(rowSums(across(c(T4_L8_Ca, T4_L8_Cb)), na.rm = TRUE)),
-    Medicare    = sum(rowSums(across(c(T4_L9_Ca, T4_L9_Cb)), na.rm = TRUE)),
-    'Other Public' = sum(rowSums(across(c(T4_L10a_Other, T4_L10a_Ca, T4_L10a_Cb,
+    'Medicaid (incl. CHIP)'    = sum(rowSums(across(c(T4_L8_Ca, T4_L8_Cb)), na.rm = TRUE)),
+   'Medicare*'    = sum(rowSums(across(c(T4_L9_Ca, T4_L9_Cb)), na.rm = TRUE)),
+    'Other Public**' = sum(rowSums(across(c(T4_L10A_OTHER, T4_L10a_Ca, T4_L10a_Cb,
                                        T4_L10b_Ca, T4_L10b_Cb)), na.rm = TRUE)),
     Private     = sum(rowSums(across(c(T4_L11_Ca, T4_L11_Cb)), na.rm = TRUE)),
     .groups = "drop"
@@ -1700,7 +1986,7 @@ insurance_combined <- bind_rows(insurance_members, insurance_national) %>%
   mutate(Pct = Patients / sum(Patients) * 100) %>%
   ungroup() %>%
   mutate(Insurance = factor(Insurance,
-                            levels = c("Uninsured", "Medicaid", "Medicare", "Other Public", "Private")))
+                            levels = c("Uninsured", "Medicaid (incl. CHIP)", "Medicare*", "Other Public**", "Private")))
 
 
 ggplot(insurance_combined, aes(x = as.character(ReportingYear), y = Pct, fill = Insurance)) +
@@ -1715,22 +2001,23 @@ ggplot(insurance_combined, aes(x = as.character(ReportingYear), y = Pct, fill = 
   facet_wrap(~Group) +
   scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
   scale_fill_manual(values = c(
-    "Uninsured"   = "#3C6E8A",
-    "Medicaid"    = "#CBD5C6",
-    "Medicare"    = "#A8C4B8",
-    "Other Public" = "#E8B4A0",
-    "Private"     = "#D9D9D9"
+    "Uninsured"   = "#E8B4A0",
+    "Medicaid (incl. CHIP)"    = "#3C6E8A",
+    "Medicare*"    = "#A8C4B8",
+    "Other Public**" = "#D9D9D9",
+    "Private"     = "#CBD5C6"
   )) +
   labs(
-    title = "Patients by Insurance Type, 2021 vs 2025",
+    title = "Patients - Insurance Type",
     x = "Reporting Year",
-    y = "% of Patients",
+    y = "Proportion of Patients",
     fill = NULL,
-    caption = "*Medicare total includes dually eligible (Medicare and Medicaid) patients, \nwho are also counted under Medicaid, consistent with HRSA UDS reporting conventions."
+    caption = "* Medicare total includes dually eligible (Medicare and Medicaid) patients, who are also counted under Medicaid, consistent with HRSA UDS reporting conventions.
+    \n** Other Public Insurance accounts for less than 2% in each bar."
   ) +
-  theme_minimal(base_size = 13) +
+  theme_minimal(base_size = 10) +
   theme(
-    text = element_text(family = "Verdana"),
+    text = element_text(family = "open_sans"),
     plot.title = element_text(face = "bold", hjust = 0.5),
     strip.text = element_text(face = "bold", size = 12),
     legend.position = "top",
@@ -1790,7 +2077,85 @@ AAPCHOMembers20212025 %>%
 
 
 # T6A - Select Diagnoses - Large bar chart, or separate --------------------------------------------------
+##This uses median aross orgs; 12.3% AAPCHO; 11.1% national
+members_diabetes <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == "2025") %>%
+  group_by(GrantNumber) %>%
+  summarise(
+    diabetesdiagnosis = sum(T6a_L9_Cb, na.rm = TRUE),
+    totpop = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    pct_diabetes = diabetesdiagnosis / totpop * 100,
+    pct_nondiabetic = 100 - pct_diabetes
+  ) %>%
+  filter(is.finite(pct_diabetes)) %>%
+  summarise(
+    `Patients with Diabetes Diagnosis` = median(pct_diabetes, na.rm = TRUE),
+    `All Other Patients` = median(pct_nondiabetic, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(Group = "AAPCHO Members")
 
+national_diabetes <- National20212025 %>%
+  filter(ReportingYear == "2025") %>%
+  group_by(GrantNumber) %>%
+  summarise(
+    diabetesdiagnosis = sum(T6a_L9_Cb, na.rm = TRUE),
+    totpop = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    pct_diabetes = diabetesdiagnosis / totpop * 100,
+    pct_nondiabetic = 100 - pct_diabetes
+  ) %>%
+  filter(is.finite(pct_diabetes)) %>%
+  summarise(
+    `Patients with Diabetes Diagnosis` = median(pct_diabetes, na.rm = TRUE),
+    `All Other Patients` = median(pct_nondiabetic, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(Group = "National")
+
+combineddiabetes <- bind_rows(members_diabetes, national_diabetes) %>%
+  pivot_longer(-Group, names_to = "Category", values_to = "pct")
+
+ggplot(combineddiabetes, aes(x = Group, y = pct, fill = Category)) +
+  geom_col(width = 0.5) +
+  geom_text(
+    data = combineddiabetes %>% filter(Category == "All Other Patients"),
+    aes(label = paste0(round(pct, 1), "%")),
+    position = position_stack(vjust = 0.5),
+    color = "white",
+    fontface = "bold",
+    size = 3.5
+  ) +
+  geom_text(
+    data = combineddiabetes %>% filter(Category == "Patients with Diabetes Diagnosis"),
+    aes(y = 105, label = paste0("Diabetes ", round(pct, 1), "%")),
+    color = "#3C6E8A",
+    fontface = "bold",
+    size = 3.0
+  ) +
+  scale_y_continuous(limits = c(0, 115)) +
+  scale_fill_manual(values = c(
+    "Patients with Diabetes Diagnosis" = "#3C6E8A",
+    "All Other Patients" = "#CBD5C6"
+  )) +
+  labs(
+    title = "Share of Patients Served \nwith Diabetes Diagnosis",
+    x = NULL,
+    y = "Average Share of Patients",
+    fill = NULL
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(
+    text = element_text(family = "Verdana"),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    strip.text = element_text(face = "bold", size = 12),
+    legend.position = "top"
+  )
 # 6a- Prevalent Chronic Conditions --------------------------------------------------
 ##Overweight and obesity T6a_L14a_Cb
 AAPCHOMembers20212025 %>%
@@ -1810,7 +2175,9 @@ National20212025 %>%
 ##Diabetes mellitus 
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
-  summarise(sum(T6a_L9_Cb, na.rm = TRUE))
+  summarise(sum(AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(sum(T6a_L9_Cb, na.rm = TRUE))))
 National20212025 %>%
   group_by(ReportingYear)%>%
   summarise(sum(T6a_L9_Cb, na.rm = TRUE))
@@ -1831,6 +2198,7 @@ National20212025 %>%
 
 # 6a- AANHPI prevalent conditions -----------------------------------------
 ##All members vs national
+##This uses aggregate, not median; diabetes 11.3% and 10.7% respectively (see above for median approach)
 ##Tuberculosis ##need to check if this is new diagnosis or can include existing
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
@@ -1868,62 +2236,169 @@ National20212025 %>%
 #   group_by(ReportingYear)%>%
 #   summarise(sum(T6a_L20f_Cb, na.rm = TRUE))
 
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
 
+
+
+members_total_patients <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(total_patients = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)))
+
+national_total_patients <- National20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(total_patients = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)))
+
+
+members_conditions <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(
+    `Diabetes Mellitus` = sum(T6a_L9_Cb, na.rm = TRUE),
+    `Hypertension` = sum(T6a_L11_Cb, na.rm = TRUE),
+    `Hepatitis B` = sum(T6a_L4a_Cb, na.rm = TRUE),
+  `Tuberculosis` = sum(T6a_L3_Cb, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "Condition", values_to = "Patients") %>%
+  mutate(
+    total_patients = members_total_patients$total_patients,
+    pct = Patients / total_patients * 100,
+    Group = "AAPCHO Members"
+  )
+
+national_conditions <- National20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(
+    `Diabetes Mellitus` = sum(T6a_L9_Cb, na.rm = TRUE),
+    `Hypertension` = sum(T6a_L11_Cb, na.rm = TRUE),
+    `Hepatitis B` = sum(T6a_L4a_Cb, na.rm = TRUE),
+    `Tuberculosis` = sum(T6a_L3_Cb, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "Condition", values_to = "Patients") %>%
+  mutate(
+    total_patients = national_total_patients$total_patients,
+    pct = Patients / total_patients * 100,
+    Group = "National"
+  )
+
+conditions_combined <- bind_rows(members_conditions, national_conditions)
+
+ggplot(conditions_combined, aes(x = reorder(Condition, -pct), y = pct, fill = Group)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(
+    aes(label = paste0(round(pct, 1), "%")),
+    position = position_dodge(width = 0.7),
+    vjust = -0.5,
+    size = 3.2
+  ) +
+  scale_y_continuous(labels = function(x) paste0(x, "%"), expand = expansion(mult = c(0, 0.15))) +
+  scale_fill_manual(values = c("AAPCHO Members" = "#3C6E8A", "National" = "#A8C4B8")) +
+  labs(
+    title = "2025 Prevalence of Selected Conditions",
+    x = NULL,
+    y = "Proportion of Total Patients",
+    fill = NULL
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(
+    text = element_text(family = "open_sans"),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 20, hjust = 1),
+    legend.position = "top"
+  )
 # 6B- CQMs ----------------------------------------------------------------
 
 ##Cervical cancer %ofPatientstestedPap
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%ofPatientstestedPap`, na.rm = TRUE))
+National20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%ofPatientstestedPap`, na.rm = TRUE))
 ##Mammogram
 AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%ofPatientswithMammogram`, na.rm = TRUE))
+National20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%ofPatientswithMammogram`, na.rm = TRUE))
 ##BMI and counseling for nutrition (child)
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%ChildrenandAdolescentswithDocumentedCounselingandBMIPercentile`, na.rm = TRUE))
+National20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%ChildrenandAdolescentswithDocumentedCounselingandBMIPercentile`, na.rm = TRUE))
+#Tobacco
+AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%PatientsAssessedforTobaccoUseandProvidedInterventionIfaTobaccoUser`, na.rm = TRUE))
+National20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%PatientsAssessedforTobaccoUseandProvidedInterventionIfaTobaccoUser`, na.rm = TRUE))
 ##BMI and follow up (adult)
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%AdultswithDocumentedBMIandFollow-upPlanIfWeightisOutsideParameters`, na.rm = TRUE))
-##Tobacco
-AAPCHOMembers20212025 %>%
+National20212025 %>%
   group_by(ReportingYear)%>%
-  summarise(mean(`%PatientsAssessedforTobaccoUseandProvidedInterventionIfaTobaccoUser`, na.rm = TRUE))
+  summarise(mean(`%AdultswithDocumentedBMIandFollow-upPlanIfWeightisOutsideParameters`, na.rm = TRUE))
+
 ##Statin therapy
 AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%ofPatientsPrescribedOrOnStatinTherapy`, na.rm = TRUE))
+National20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%ofPatientsPrescribedOrOnStatinTherapy`, na.rm = TRUE))
 ##IVD diagnosis
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%ofAdults18andolderwithIVDwithDocumentationOfAspirinOrOtherAntiplateletTherapy`, na.rm = TRUE))
+National20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%ofAdults18andolderwithIVDwithDocumentationOfAspirinOrOtherAntiplateletTherapy`, na.rm = TRUE))
 ##CRC screening
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%ofAdultswithAppropriateScreeningforColorectalCancer`, na.rm = TRUE))
-##HIV and 30 days f/u treatment
+National20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%ofAdultswithAppropriateScreeningforColorectalCancer`, na.rm = TRUE))
+#HIV treatment
 AAPCHOMembers20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%PatientsSeenWithin30DaysofFirstDiagnosisofHIV`, na.rm = TRUE))
+National20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%PatientsSeenWithin30DaysofFirstDiagnosisofHIV`, na.rm = TRUE))
 ##HIV testing
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%PatientsTestedforHIV`, na.rm = TRUE))
+National20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%PatientsTestedforHIV`, na.rm = TRUE))
 ##Patients 12 and up screened for depression
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%PatientsScreenedforDepressionandFollowupPlanDocumentedasAppropriate`, na.rm = TRUE))
-##Depression remission
-AAPCHOMembers20212025 %>%
+National20212025 %>%
   group_by(ReportingYear)%>%
-  summarise(mean(`%PatientswhoReachedRemission`, na.rm = TRUE))
+  summarise(mean(`%PatientsScreenedforDepressionandFollowupPlanDocumentedasAppropriate`, na.rm = TRUE))
+
 ##Dental sealant
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear)%>%
   summarise(mean(`%PatientsAged6-9WithSealantsToFirstMolars`, na.rm = TRUE))
+National20212025 %>%
+  group_by(ReportingYear)%>%
+  summarise(mean(`%PatientsAged6-9WithSealantsToFirstMolars`, na.rm = TRUE))
+#early entry prenatal
 
+#initiation and egagement of sud %PatientsAged13AndOlderWhoInitiatedNewSUDTreatment
+#childhood immuniz  %ofPatientsImmunized 
 
 # 7 - Disaggregated CQMs -----------------------------------------------------------------
 ##Hypertension
@@ -1933,7 +2408,12 @@ AAPCHOMembers20212025 %>%
     weighted_avg_ratio = sum(((T7_Li_C2c / T7_Li_C2b) * T7_Li_C2a)*100, na.rm = TRUE) /
       sum(T7_Li_C2a, na.rm = TRUE)
   )
-
+National20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(
+    weighted_avg_ratio = sum(((T7_Li_C2c / T7_Li_C2b) * T7_Li_C2a)*100, na.rm = TRUE) /
+      sum(T7_Li_C2a, na.rm = TRUE)
+  )
 ##Diabetes (uncontrolled)
 AAPCHOMembers20212025 %>%
   group_by(ReportingYear) %>%
@@ -1941,3 +2421,81 @@ AAPCHOMembers20212025 %>%
     weighted_avg_ratio = sum(((T7_Li_C3f / T7_Li_C3b) * T7_Li_C3a)*100, na.rm = TRUE) /
       sum(T7_Li_C3a, na.rm = TRUE)
   )
+National20212025 %>%
+  group_by(ReportingYear) %>%
+  summarise(
+    weighted_avg_ratio = sum(((T7_Li_C3f / T7_Li_C3b) * T7_Li_C3a)*100, na.rm = TRUE) /
+      sum(T7_Li_C3a, na.rm = TRUE)
+  )
+
+
+
+
+members_total_patients <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(total_patients = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)))
+
+national_total_patients <- National20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(total_patients = sum(rowSums(across(c(T3a_L39_Ca, T3a_L39_Cb)), na.rm = TRUE)))
+
+
+members_6B <- AAPCHOMembers20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(
+    `Cervical Cancer Screening` = mean(`%ofPatientstestedPap`, na.rm = TRUE),
+    `Breast Cancer Screening` = mean(`%ofPatientswithMammogram`, na.rm = TRUE),
+    `Colorectal Cancer Screening` = mean(`%ofAdultswithAppropriateScreeningforColorectalCancer`, na.rm = TRUE),
+    `BMI & Nutrition \nCounseling (Child)` = mean(`%ChildrenandAdolescentswithDocumentedCounselingandBMIPercentile`, na.rm = TRUE),
+    `BMI and Follow-Up (Adult)` = mean(`%AdultswithDocumentedBMIandFollow-upPlanIfWeightisOutsideParameters`, na.rm = TRUE),
+    `Statin Therapy` = mean(`%ofPatientsPrescribedOrOnStatinTherapy`, na.rm = TRUE),
+    `Ischemic Vascular Disease` = mean(`%ofAdults18andolderwithIVDwithDocumentationOfAspirinOrOtherAntiplateletTherapy`, na.rm = TRUE),
+    `Patients Aged 12+ Screened for Depression` = mean(`%PatientsScreenedforDepressionandFollowupPlanDocumentedasAppropriate`, na.rm = TRUE),
+    `Dental Sealants` = mean(`%PatientsAged6-9WithSealantsToFirstMolars`, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "CQM", values_to = "Outcome") %>%
+  mutate(Group = "AAPCHO Members")
+
+national_6B <- National20212025 %>%
+  filter(ReportingYear == 2025) %>%
+  summarise(
+    `Cervical Cancer Screening` = mean(`%ofPatientstestedPap`, na.rm = TRUE),
+    `Breast Cancer Screening` = mean(`%ofPatientswithMammogram`, na.rm = TRUE),
+    `Colorectal Cancer Screening` = mean(`%ofAdultswithAppropriateScreeningforColorectalCancer`, na.rm = TRUE),
+    `BMI & Nutrition \nCounseling (Child)` = mean(`%ChildrenandAdolescentswithDocumentedCounselingandBMIPercentile`, na.rm = TRUE),
+    `BMI and Follow-Up (Adult)` = mean(`%AdultswithDocumentedBMIandFollow-upPlanIfWeightisOutsideParameters`, na.rm = TRUE),
+    `Statin Therapy` = mean(`%ofPatientsPrescribedOrOnStatinTherapy`, na.rm = TRUE),
+    `Ischemic Vascular Disease` = mean(`%ofAdults18andolderwithIVDwithDocumentationOfAspirinOrOtherAntiplateletTherapy`, na.rm = TRUE),
+    `Patients Aged 12+ Screened for Depression` = mean(`%PatientsScreenedforDepressionandFollowupPlanDocumentedasAppropriate`, na.rm = TRUE),
+    `Dental Sealants` = mean(`%PatientsAged6-9WithSealantsToFirstMolars`, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), names_to = "CQM", values_to = "Outcome") %>%
+  mutate(Group = "National")
+
+combined_6B <- bind_rows(members_6B, national_6B)
+
+ggplot(combined_6B, aes(x = CQM, y = Outcome, fill = Group)) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.6) +
+  geom_text(
+    aes(label = paste0(round(Outcome, 1), "%")),
+    position = position_dodge(width = 0.7),
+    vjust = -0.5,
+    size = 3.0
+  ) +
+  scale_y_continuous(labels = function(x) paste0(x, "%"), expand = expansion(mult = c(0, 0.15))) +
+  scale_fill_manual(values = c("AAPCHO Members" = "#3C6E8A", "National" = "#A8C4B8")) +
+  labs(
+    title = "2025 Select Quality of Care Measure Performance",
+    x = "CQM",
+    y = "Proportion of Total Patients",
+    fill = NULL
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(
+    text = element_text(family = "Verdana"),
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.text.x = element_text(angle = 20, hjust = 1),
+    legend.position = "top"
+  )
+
+AAPCHOMembers20212025
